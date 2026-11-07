@@ -30,6 +30,25 @@ git clone <本仓库> superagent-backup && cd superagent-backup
 **需要先装好 DeepSeek Harness.app**（本备份对应 0.2.2-rc.1），并且把 `superagent/` 放到
 脚本默认期望的位置（或改 `restore.sh` 顶部的路径变量）。
 
+想先演练（不动真实目录、不碰 launchd）：
+
+```sh
+SRC_DIR=/tmp/t/src PROFILE_DIR=/tmp/t/profile APP_DST="/tmp/t/Super Agent.app" \
+SKIP_LAUNCHD=1 ./restore.sh
+```
+
+路径变量都能用环境变量覆盖：`DSH_APP` `SRC_DIR` `PROFILE_DIR` `PLIST_DST` `APP_DST` `LABEL` `REGISTRY`。
+
+## 更新这份备份
+
+```sh
+git add -A && git commit -m "update: ..."
+./tools/push.sh
+```
+
+`push.sh` 走 GitHub Data API（本机 `git push` 不通），token 从钥匙串取
+（`security find-internet-password -s github.com`），也能用 `GITHUB_TOKEN=...` 覆盖。
+
 ## 注意
 
 - 运行态不在这里：`~/.dsh/state/superagent`（sqlite 历史、worker 垫片、GitHub 桥裸仓）

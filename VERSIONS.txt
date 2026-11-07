@@ -7,4 +7,4 @@ node: v24.21.0
 本机改动: src/infra/environment.ts + 新增 bridge/ + DEPLOYMENT-zh.md
 面板端口: 3082  (LaunchAgent com.bigfatdsh.superagent)
 文件数: 247
-体积: 4.2M（含 .git 之前的目录）
+体积: 约 4.3M（源码+构建产物+app）

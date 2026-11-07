@@ -4,13 +4,13 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# ---- 可改的路径 ----
-DSH_APP="/Applications/DeepSeek Harness.app"
-SRC_DIR="$HOME/Documents/deepseek-harness/default-workspace/adapted/dsh-superagent"
-PROFILE_DIR="$HOME/.dsh/profiles/superagent"
-LABEL="com.bigfatdsh.superagent"
-PLIST_DST="$HOME/Library/LaunchAgents/$LABEL.plist"
-APP_DST="$HOME/Desktop/Super Agent.app"
+# ---- 可改的路径（也都能用环境变量覆盖，便于先演练）----
+DSH_APP="${DSH_APP:-/Applications/DeepSeek Harness.app}"
+SRC_DIR="${SRC_DIR:-$HOME/Documents/deepseek-harness/default-workspace/adapted/dsh-superagent}"
+PROFILE_DIR="${PROFILE_DIR:-$HOME/.dsh/profiles/superagent}"
+LABEL="${LABEL:-com.bigfatdsh.superagent}"
+PLIST_DST="${PLIST_DST:-$HOME/Library/LaunchAgents/$LABEL.plist}"
+APP_DST="${APP_DST:-$HOME/Desktop/Super Agent.app}"
 REGISTRY="${REGISTRY:-https://registry.npmmirror.com}"
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
@@ -79,8 +79,13 @@ xattr -dr com.apple.quarantine "$APP_DST" 2>/dev/null
 codesign --force --deep --sign - "$APP_DST" >/dev/null 2>&1
 
 # ---- 5. 开机自启 ----
+if [ -n "${SKIP_LAUNCHD:-}" ]; then
+  say "跳过 LaunchAgent（SKIP_LAUNCHD 已设置）"
+  exit 0
+fi
+
 say "安装 LaunchAgent"
-mkdir -p "$HOME/Library/LaunchAgents"
+mkdir -p "$(dirname "$PLIST_DST")"
 cp "$HERE/launchd/$LABEL.plist" "$PLIST_DST"
 launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1
 launchctl bootstrap "gui/$(id -u)" "$PLIST_DST" || die "LaunchAgent 加载失败，看 $PLIST_DST"
