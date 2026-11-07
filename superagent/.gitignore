@@ -1,0 +1,5 @@
+node_modules/
+.artifacts/
+coverage/
+.env
+# 与上游 .gitignore 的差别：本备份故意保留 lib/（构建产物，含面板前端 lib/client.js）

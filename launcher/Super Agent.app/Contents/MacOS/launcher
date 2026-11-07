@@ -1,0 +1,44 @@
+#!/bin/bash
+# Super Agent 启动器
+# 作用：服务没跑就先拉起来 → 从日志取最新登录 token → 在浏览器打开面板
+set -u
+
+STATE="$HOME/.dsh/state/superagent"
+LOG="$STATE/logs/launchd.out.log"
+URL="http://127.0.0.1:3082/"
+SELF_LOG="$HOME/Library/Logs/superagent-launcher.log"
+
+mkdir -p "$(dirname "$SELF_LOG")" 2>/dev/null
+say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >>"$SELF_LOG" 2>/dev/null; }
+
+# 401/303 都算「在跑」，只要不是连不上
+up() {
+  local code
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$URL" 2>/dev/null)
+  [ "$code" != "000" ]
+}
+
+if ! up; then
+  say "service down -> kickstart"
+  launchctl kickstart -k "gui/$(id -u)/com.bigfatdsh.superagent" >>"$SELF_LOG" 2>&1
+  for _ in $(seq 1 120); do
+    up && break
+    sleep 0.5
+  done
+fi
+
+if ! up; then
+  say "still down after kickstart"
+  osascript -e 'display alert "Super Agent 没能启动" message "服务没起来。看 ~/.dsh/state/superagent/logs/launchd.err.log 的最后几行。" as critical' >/dev/null 2>&1
+  exit 1
+fi
+
+TOK=$(grep -o 'token=[A-Za-z0-9_-]*' "$LOG" 2>/dev/null | tail -1 | cut -d= -f2)
+if [ -n "${TOK:-}" ]; then
+  OPEN_URL="${URL}?token=${TOK}"
+else
+  OPEN_URL="$URL"
+fi
+
+say "open ${URL} token=${TOK:+yes}"
+open "$OPEN_URL"

@@ -1,0 +1,22 @@
+# super-agent 专用 profile 的补丁层：端口、状态目录、默认模型。
+- id: webserver
+  config:
+    host: 127.0.0.1
+    port: 3082
+
+# 用账号登录态（deepseek-account）而不是需要 DEEPSEEK_API_KEY 的 deepseek-official。
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: deepseek-account
+    model: deepseek-flash
+    reasoningEffort: max
+
+- id: dsh-superagent
+  config:
+    stateDir: /Users/yangletian/.dsh/state/superagent
+  disabled: false
+- id: ui-settings-general
+  name: "@deepseek-ai/dsh-client-ui-settings-general"
+  config:
+    welcomeNoticeVersion: 2026-09-28.1

@@ -1,0 +1,10 @@
+super-agent 备份清单
+打包时间: 2026-11-07 22:24:44 CST
+打包机器: macOS 26.6.2 arm64
+DSH: 0.2.2-rc.1
+node: v24.21.0
+上游: deepseek-ai/dsh-superagent-prototype@8c32a9dc (2026-10-31)
+本机改动: src/infra/environment.ts + 新增 bridge/ + DEPLOYMENT-zh.md
+面板端口: 3082  (LaunchAgent com.bigfatdsh.superagent)
+文件数: 247
+体积: 4.2M（含 .git 之前的目录）

@@ -1,0 +1,22 @@
+{
+  "name": "dsh-profile-superagent",
+  "private": true,
+  "dependencies": {
+    "@local/dsh-ai-video-preset": "link:/Users/yangletian/Documents/deepseek-harness/ai-video-studio/engine/dsh-ai-video-preset",
+    "dsh-blender-plugin": "3.0.6",
+    "dsh-plugin-seedance": "link:/Users/yangletian/Documents/deepseek-harness/ai-video-studio/engine/dsh-plugin-seedance",
+    "dsh-superagent": "link:/Users/yangletian/Documents/deepseek-harness/default-workspace/adapted/dsh-superagent"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "dsh-superagent",
+        "dsh-blender-plugin",
+        "dsh-plugin-seedance",
+        "@local/dsh-ai-video-preset"
+      ]
+    }
+  }
+}
