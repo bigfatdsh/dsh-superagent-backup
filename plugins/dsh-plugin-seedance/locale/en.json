@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Seedance 2.5 video",
+    "description": "Generate video with Volcengine Ark Seedance 2.5: reference videos/images/audio, first/last frame, edit/extend, 4-30s, dry-run payload preview, public staging for local MP4s, task persistence, and ffprobe QA."
+  }
+}

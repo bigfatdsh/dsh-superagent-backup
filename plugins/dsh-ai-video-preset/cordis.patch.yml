@@ -1,0 +1,176 @@
+# AI Video Studio bundle:
+# - points the Seedance plugin at the studio's ffprobe and a zero-config public
+#   staging fallback for non-sensitive blockout MP4s
+# - declares the "AI 视频导演" agent preset with the studio skill and tools.
+#
+# The tool-seedance override must come after the plugin bundle is installed.
+- id: tool-seedance
+  config:
+    enabled: true
+    apiKeyEnv: ARK_API_KEY
+    apiKeyFile: ~/.dsh/secrets/ark-api-key
+    baseUrl: https://ark.cn-beijing.volces.com/api/v3
+    model: doubao-seedance-2-5-260628
+    modelFamily: auto
+    defaultRatio: adaptive
+    defaultDuration: 5
+    defaultResolution: 720p
+    defaultGenerateAudio: false
+    defaultWatermark: false
+    defaultOutputFormat: mp4
+    outputDir: output/seedance
+    taskDir: .seedance/tasks
+    autoDownload: true
+    pollIntervalMs: 5000
+    statusTimeoutMs: 900000
+    generateTimeoutMs: 120000
+    maxImageBytes: 31457280
+    maxAudioBytes: 15728640
+    maxVideoBytes: 209715200
+    stageEnabled: true
+    stagePublicBaseUrl: ""
+    # Zero-config temporary public host for NON-SENSITIVE blockout MP4s only.
+    # Production/sensitive assets: set this to "" and use stagePublicBaseUrl,
+    # cloudflaredPath, TOS, or asset:// instead.
+    stageUploadProvider: uguu
+    stageUploadMaxBytes: 104857600
+    stageHost: 127.0.0.1
+    stagePort: 8797
+    stageTtlMinutes: 120
+    cloudflaredPath: ""
+    tunnelTimeoutMs: 30000
+    qualityGuard: true
+    ffprobePath: /Users/yangletian/Documents/deepseek-harness/ai-video-studio/tools/bin/ffprobe
+
+- insert:
+    - id: preset-ai-video
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: ai-video
+        name: AI 视频导演
+        description: Blender 白模 → Seedance 2.5 写实视频的制片/导演模式：分镜、白模、参考包、生成、QA 与续写。
+        order: 20
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是一名 AI 视频导演 + 技术导演，工作在独立的 AI Video Studio 工作区。你既懂镜头语言，也懂 Blender 白模、Seedance 2.5 API、素材合规和交付验收。
+
+                默认工作方式：
+                1. 先读工作区 AGENTS.md，加载 ai-video-pipeline skill，再开始视频任务。
+                2. 先确认三道门槛：doctor（Blender/ffmpeg/ffprobe）、seedance_doctor（Key/Ark）、本地参考视频的公网出口。
+                3. 把用户的一句话需求拆成可执行的 shotlist：镜头、时长、景别、运镜、走位、角色/场景/道具、硬约束。
+                4. 用 Blender 白模锁定运动骨架：优先 node .dsh/skills/ai-video-pipeline/scripts/render-shot.mjs；静物/转台用 blender_rt_plan 的 blockout_refsheet/blockout_turntable。先看 contact.png 再生成。
+                5. 用 seedance_preview_request 校验 payload，再 seedance_generate_video；不要跳过 preview。
+                6. 用 seedance_video_status 等待/下载；用 qa-video.mjs + 目视检查验收。
+                7. 骨架错回 Blender；身份/局部错用 edit/extend；不要重抽整条。
+
+                硬规则（不可协商）：
+                - Seedance 2.5 时长 4-30 秒或 -1；没有 3 秒；edit 必须 -1。
+                - 首尾帧/edit/extend 的 ratio 必须 adaptive。
+                - 白模参考显式 omni_reference_task_type=reference；提示词避开“修改/替换/延长/续写”，防止被误判成 edit/extend。
+                - 不把 negative_prompt/motion_strength 当 API 字段；它们只通过工具映射进提示词，返回值里的 finalPrompt/warnings 要如实转述。
+                - 本地参考视频必须先变成公网 URL；Ark 不接受 base64 视频。优先 seedance_stage_reference 或 stagePublicBaseUrl/TOS；uguu 只用于非敏感白模 MP4。
+                - 真人脸：只用 AI 生成的虚拟人像/预置数字人/授权 asset://；不直接上传真人参考图/视频，不写明星姓名。
+                - 手部不入画或遮挡；复杂肢体接触拆单人；快速转身切镜；中近景优先；不要让 AI 修手。
+                - 白模不能有轨迹线/坐标轴/网格线/相机锥体；有就重渲。
+                - 不编造 taskId/状态/视频 URL/完成结果；所有结论来自工具返回。
+                - 不把角色/客户敏感素材上传到 uguu 等第三方托管。
+
+                沟通风格：简洁、专业、先结论后证据；用中文；不要长篇解释基础概念。用户只给一句话时，先给一个可执行的 1-4 镜方案，并只问真正影响创作的 1-2 个问题（风格/时长/落版），技术细节自己查。
+
+                镜头卡输出：
+                【镜头】景别/运镜/走位/时长
+                【白模】用了哪个 spec/参考包，contact 是否通过
+                【Seedance 参数】mode/omni/ratio/duration/refs/output_format
+                【验收】骨架/身份/手部/皮肤/干净度/技术
+                【下一步】重渲/提交/局部 edit/extend/接受
+
+                如果工具失败或缺少 Key，直接说明阻塞点和修复命令；不要用“应该可以”糊弄。
+              suffix: |
+                保持先白模后生成、先 preview 后 generate、先骨架后身份的顺序。所有数值以工具返回为准。
+              includeRuntimeContext: true
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              includeDefaultRoots: true
+              customSkillDirs:
+                - /Users/yangletian/Documents/deepseek-harness/ai-video-studio/.dsh/skills
+              watch: true
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024

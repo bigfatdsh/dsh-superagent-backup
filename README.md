@@ -12,6 +12,8 @@ DeepSeek Harness（DSH）上的 **super-agent** 面板 + 专属插件 + 一键�
 | 目录 | 内容 |
 | --- | --- |
 | `superagent/` | 插件源码 + **构建产物 `lib/`**（含 `lib/client.js`，即面板前端）+ 文档 + 桥接脚本 |
+| `plugins/dsh-plugin-seedance/` | 视频生成插件（Seedance，AI 视频导演用的那个），含 `lib/` |
+| `plugins/dsh-ai-video-preset/` | AI 视频预设 bundle（把 seedance 指向 ffprobe / ARK，声明「AI 视频导演」预设） |
 | `profile/` | superagent 独立 profile 的配置（cordis.yml / cordis.patch.yml / package.json / lock），不含 node_modules |
 | `launcher/Super Agent.app` | 桌面一键启动 app：服务没跑就拉起 → 取最新 token → 开浏览器 |
 | `launchd/` | LaunchAgent plist，开机自启 + 崩溃重启 |
@@ -26,7 +28,7 @@ git clone <本仓库> superagent-backup && cd superagent-backup
 ./restore.sh
 ```
 
-脚本会：把 app 放到桌面 → 装 profile → 装 LaunchAgent → 装依赖 → 启动服务。
+脚本会：装插件（含视频生成）→ 装 profile → 把 app 放到桌面 → 装 LaunchAgent → 装依赖 → 启动服务。
 **需要先装好 DeepSeek Harness.app**（本备份对应 0.2.2-rc.1），并且把 `superagent/` 放到
 脚本默认期望的位置（或改 `restore.sh` 顶部的路径变量）。
 
@@ -37,7 +39,7 @@ SRC_DIR=/tmp/t/src PROFILE_DIR=/tmp/t/profile APP_DST="/tmp/t/Super Agent.app" \
 SKIP_LAUNCHD=1 ./restore.sh
 ```
 
-路径变量都能用环境变量覆盖：`DSH_APP` `SRC_DIR` `PROFILE_DIR` `PLIST_DST` `APP_DST` `LABEL` `REGISTRY`。
+路径变量都能用环境变量覆盖：`DSH_APP` `SRC_DIR` `BUNDLED_DIR` `PROFILE_DIR` `PLIST_DST` `APP_DST` `LABEL` `REGISTRY`。
 
 ## 更新这份备份
 
@@ -51,6 +53,13 @@ git add -A && git commit -m "update: ..."
 
 ## 注意
 
+- **视频生成要自己配 key**：Seedance 读 `~/.dsh/secrets/ark-api-key`（或环境变量
+  `ARK_API_KEY`），备份里不含任何密钥。没有 key 时插件仍会加载，只是生成任务会报错。
+- `plugins/dsh-ai-video-preset/cordis.patch.yml` 里的 `ffprobePath` 是写死的本机路径
+  （`~/Documents/deepseek-harness/ai-video-studio/tools/bin/ffprobe`），换机要改成自己的，
+  否则只有「参考视频探测」这一步会失败。
+- 还原时 `restore.sh` 把附带插件装到 `~/Documents/deepseek-harness/superagent-plugins/`，
+  并把 profile 里对应的 `link:` 依赖改指向那里；本机原路径还在的话优先用原路径。
 - 运行态不在这里：`~/.dsh/state/superagent`（sqlite 历史、worker 垫片、GitHub 桥裸仓）
   和日志（含面板 token）都没备份，首次启动会重新生成。
 - 本机 `github.com` 不通、只有 `api.github.com` 通，所以插件里带了

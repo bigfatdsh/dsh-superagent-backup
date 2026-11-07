@@ -1,0 +1,45 @@
+# Seedance 2.5 (Volcengine Ark) video tools.
+# Override this row by id from the profile patch if the key environment variable,
+# model, region, or staging strategy differs.
+- insert:
+    - id: tool-seedance
+      name: dsh-plugin-seedance
+      config:
+        enabled: true
+        # The key is read from this environment variable first, then from apiKeyFile.
+        apiKeyEnv: ARK_API_KEY
+        apiKeyFile: ~/.dsh/secrets/ark-api-key
+        # CN Ark. International BytePlus: https://ark.ap-southeast.bytepluses.com/api/v3
+        baseUrl: https://ark.cn-beijing.volces.com/api/v3
+        # The only Seedance 2.5 SKU as of 2026-11-07 (CN). International: dreamina-seedance-2-5-260628
+        model: doubao-seedance-2-5-260628
+        modelFamily: auto
+        defaultRatio: adaptive
+        defaultDuration: 5
+        defaultResolution: 720p
+        defaultGenerateAudio: false
+        defaultWatermark: false
+        defaultOutputFormat: mp4
+        outputDir: output/seedance
+        taskDir: .seedance/tasks
+        autoDownload: true
+        pollIntervalMs: 5000
+        statusTimeoutMs: 900000
+        generateTimeoutMs: 120000
+        maxImageBytes: 31457280
+        maxAudioBytes: 15728640
+        maxVideoBytes: 209715200
+        # Local Blender MP4s cannot be sent as base64. Either expose them through
+        # a public reverse proxy/tunnel that points at stagePort, or let the plugin
+        # start a Cloudflare quick tunnel with cloudflaredPath.
+        stageEnabled: true
+        stagePublicBaseUrl: ""
+        stageUploadProvider: ""
+        stageUploadMaxBytes: 104857600
+        stageHost: 127.0.0.1
+        stagePort: 8797
+        stageTtlMinutes: 120
+        cloudflaredPath: ""
+        tunnelTimeoutMs: 30000
+        qualityGuard: true
+        ffprobePath: ""

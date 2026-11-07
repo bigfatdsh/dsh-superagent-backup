@@ -35,23 +35,47 @@ mkdir -p "$(dirname "$SRC_DIR")"
 mkdir -p "$SRC_DIR"
 rsync -a --exclude node_modules --exclude .git "$HERE/superagent/" "$SRC_DIR/"
 
+# 附带插件（视频生成 seedance + AI 视频预设）
+BUNDLED_DIR="${BUNDLED_DIR:-$HOME/Documents/deepseek-harness/superagent-plugins}"
+if [ -d "$HERE/plugins" ]; then
+  say "安装附带插件到 $BUNDLED_DIR"
+  mkdir -p "$BUNDLED_DIR"
+  for d in "$HERE"/plugins/*/; do
+    name="$(basename "$d")"
+    mkdir -p "$BUNDLED_DIR/$name"
+    rsync -a --exclude node_modules --exclude .git "$d" "$BUNDLED_DIR/$name/"
+  done
+fi
+
 # ---- 2. profile ----
 say "写入 profile $PROFILE_DIR"
 mkdir -p "$PROFILE_DIR"
 cp "$HERE/profile/cordis.yml" "$HERE/profile/cordis.patch.yml" "$PROFILE_DIR/"
 cp "$HERE/profile/pnpm-lock.yaml" "$HERE/profile/pnpm-workspace.yaml" "$PROFILE_DIR/" 2>/dev/null
 
-# 清掉指向本机不存在的 link: 依赖，否则 pnpm install 会失败
-SRC_PKG="$HERE/profile/package.json" DST_PKG="$PROFILE_DIR/package.json" SRC_DIR_V="$SRC_DIR" "$NODE" <<'NODE'
+# link: 依赖改指向本机实际位置：本机有的原样保留，没有的用 plugins/ 里带的，再没有就丢掉
+SRC_PKG="$HERE/profile/package.json" DST_PKG="$PROFILE_DIR/package.json" \
+SRC_DIR_V="$SRC_DIR" BUNDLED_DIR_V="$BUNDLED_DIR" "$NODE" <<'NODE'
 const fs = require('fs')
-const { SRC_PKG, DST_PKG, SRC_DIR_V } = process.env
+const path = require('path')
+const { SRC_PKG, DST_PKG, SRC_DIR_V, BUNDLED_DIR_V } = process.env
 const pkg = JSON.parse(fs.readFileSync(SRC_PKG, 'utf8'))
 const drop = []
 for (const [name, spec] of Object.entries(pkg.dependencies ?? {})) {
   if (!spec.startsWith('link:')) continue
-  const target = name === 'dsh-superagent' ? SRC_DIR_V : spec.slice(5)
-  if (!fs.existsSync(target)) { drop.push(name); delete pkg.dependencies[name] }
-  else if (name === 'dsh-superagent') pkg.dependencies[name] = `link:${SRC_DIR_V}`
+  const original = spec.slice(5)
+  let target
+  if (name === 'dsh-superagent') target = SRC_DIR_V
+  else if (fs.existsSync(original)) target = original
+  else {
+    for (const candidate of [path.basename(original), name.split('/').pop()]) {
+      const p = path.join(BUNDLED_DIR_V, candidate)
+      if (fs.existsSync(path.join(p, 'package.json'))) { target = p; break }
+    }
+  }
+  if (!target) { drop.push(name); delete pkg.dependencies[name]; continue }
+  pkg.dependencies[name] = `link:${target}`
+  if (target !== original) console.log(`${name}: link -> ${target}`)
 }
 if (drop.length) {
   pkg.dsh.profile.bundles = (pkg.dsh.profile.bundles ?? []).filter(b => !drop.includes(b))

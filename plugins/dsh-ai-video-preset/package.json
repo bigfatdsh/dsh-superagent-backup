@@ -1,0 +1,23 @@
+{
+  "name": "@local/dsh-ai-video-preset",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Video Studio preset: Blender blockout -> Seedance 2.5 realistic video director mode.",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "exports": {
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "MIT"
+}

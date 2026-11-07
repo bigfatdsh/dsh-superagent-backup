@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Seedance 2.5 视频",
+    "description": "调用火山方舟 Seedance 2.5 生成视频：支持白模参考视频、参考图/音频、首尾帧、edit/extend、4–30 秒、payload 预演、本地视频公网 staging、任务持久化与 ffprobe QA。"
+  }
+}
