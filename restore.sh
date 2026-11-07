@@ -47,6 +47,19 @@ if [ -d "$HERE/plugins" ]; then
   done
 fi
 
+# 管线 skill（ai-video-pipeline：一致性契约 / 确定性提示词 / 证据制 QA 脚本）
+# 预设里的 skill-filesystem 指向 $STUDIO_DIR/.dsh/skills，这里装到同一位置。
+STUDIO_DIR="${STUDIO_DIR:-$HOME/Documents/deepseek-harness/ai-video-studio}"
+if [ -d "$HERE/skills" ]; then
+  say "安装管线 skill 到 $STUDIO_DIR/.dsh/skills"
+  mkdir -p "$STUDIO_DIR/.dsh/skills"
+  for d in "$HERE"/skills/*/; do
+    name="$(basename "$d")"
+    mkdir -p "$STUDIO_DIR/.dsh/skills/$name"
+    rsync -a --exclude node_modules --exclude __pycache__ "$d" "$STUDIO_DIR/.dsh/skills/$name/"
+  done
+fi
+
 # ---- 2. profile ----
 say "写入 profile $PROFILE_DIR"
 mkdir -p "$PROFILE_DIR"
