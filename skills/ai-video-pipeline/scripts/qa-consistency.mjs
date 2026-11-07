@@ -233,11 +233,21 @@ async function cropEvidence(video, times, fps, item, info, out) {
     .then(() => out, () => undefined);
 }
 
+async function pickPath(root, value) {
+  // 相对路径先按 CWD 解析，找不到再按 project 根解析（两种调用习惯都支持）
+  if (isAbsolute(value)) return value;
+  const fromCwd = resolve(value);
+  if (await exists(fromCwd)) return fromCwd;
+  const fromRoot = resolve(root, value);
+  if (await exists(fromRoot)) return fromRoot;
+  return fromCwd;
+}
+
 async function resolveVideo(root, shot, args, videoDir) {
   const override = args.video.find((entry) => entry.startsWith(`${shot.id}=`));
   if (override) {
     const path = override.slice(shot.id.length + 1);
-    const absolute = isAbsolute(path) ? path : resolve(path);
+    const absolute = await pickPath(root, path);
     return (await exists(absolute)) ? absolute : { missing: absolute };
   }
   const taskId = shot.result?.taskId;
@@ -346,8 +356,12 @@ async function main() {
   const contractPath = join(root, "consistency.json");
   if (!(await exists(contractPath))) throw new Error(`缺少 ${contractPath}：先建契约，否则无法判定一致性`);
   const contract = await readJson(contractPath);
-  const videoDir = resolve(args["video-dir"] ?? join(root, "output/seedance"));
-  const outDir = resolve(args.out ?? join(root, "qa"));
+  const videoDir = args["video-dir"]
+    ? await pickPath(root, args["video-dir"])
+    : join(root, "output/seedance");
+  const outDir = args.out
+    ? (isAbsolute(args.out) ? args.out : join(root, args.out))
+    : join(root, "qa");
   const evidenceDir = join(outDir, "consistency");
   await mkdir(evidenceDir, { recursive: true });
 

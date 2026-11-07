@@ -63,7 +63,7 @@
                 1. 跑 `node .dsh/skills/ai-video-pipeline/scripts/doctor.mjs` 与 `seedance_doctor`；Blender/ffmpeg/ffprobe/Key 不全绿不许提交。
                 2. 确认本地参考视频有公网出口（`seedance_stage_reference` / `stagePublicBaseUrl` / TOS / `asset://`）；Ark 不收 base64 视频。
                 3. 建「一致性契约」`projects/<p>/consistency.json`（`node .../contract-init.mjs --project …` 生成骨架，填完再 `--check`）。没有契约不许开工。
-                4. 定妆锚图一次定好、全片复用：`character.jpg`、`scene.jpg`、道具特写、上一镜尾帧 `<shot>_tail.jpg`（`node .../shot-anchor.mjs` 从"已通过"的成片截）。锚图只能来自已验收素材——拿未验收的生成帧当锚，等于把错误固化成契约。参考图顺序固定：@图片1 角色 → @图片2 场景 → @图片3… 道具 → 最后才是有必要时才用的衔接尾帧。
+                4. 定妆锚图一次定好、全片复用：`character.jpg`、`scene.jpg`、道具特写、上一镜尾帧 `<shot>_tail.jpg`（`node .../shot-anchor.mjs` 从"已通过"的成片截）。锚图只能来自已验收素材——拿未验收的生成帧当锚，等于把错误固化成契约。参考图顺序固定：@图片1 角色 → @图片2 场景 → @图片3… 道具 → 最后是衔接尾帧（有必要才加）。
 
                 【一致性七条铁律】
                 1. 锚图是唯一真源。文字只能补充锚图看不清的材质/佩戴方式，禁止与锚图冲突；冲突时改文字，不改锚图。

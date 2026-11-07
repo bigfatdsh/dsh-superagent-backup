@@ -180,10 +180,20 @@ async function main() {
   for (const item of mustShow) {
     const prop = (subjects.props ?? []).find((candidate) => candidate.id === item.prop)
       ?? (subjects.props ?? []).find((candidate) => `${item.what}`.includes(candidate.id));
-    if (prop && !usedProps.includes(prop)) usedProps.push(prop);
+    if (!prop) {
+      warnings.push(`must_show「${item.what}」没有对应的 subjects.props 条目：道具没有锚图，跨镜一致性没有依据`);
+      continue;
+    }
+    if (!usedProps.includes(prop)) usedProps.push(prop);
   }
   for (const prop of usedProps) pushImage(prop.anchor, `prop:${prop.id}`, `道具·${prop.id}`);
   pushImage(entry.anchor_tail, "tail", "上一镜尾帧（衔接锚）");
+  // shotlist 里额外指定的参考图排在契约锚图之后，编号不打断前四张
+  for (const extra of seedance.reference_images ?? []) {
+    if (pushImage(extra, "extra", "补充参考（shotlist 指定）")) {
+      warnings.push(`shotlist 额外参考图 ${extra}：契约锚图优先，它排在其后`);
+    }
+  }
 
   const missingAnchors = [];
   for (const [index, item] of imagePlan.entries()) {
