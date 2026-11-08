@@ -125,6 +125,15 @@ function validate(data, shotlist) {
       continue;
     }
     if (!subject.anchor) errors.push(`subjects.${key}.anchor 必填（定妆锚图路径）`);
+    const style = String(data.look?.style ?? "photoreal").toLowerCase();
+    const provenance = subject.anchorProvenance;
+    if (provenance === undefined) {
+      warnings.push(`${key}.anchorProvenance 未声明（photo / accepted-frame / blockout）：写实项目的锚图必须是照片级`);
+    } else if (!["photo", "accepted-frame", "blockout"].includes(provenance)) {
+      errors.push(`subjects.${key}.anchorProvenance 非法：${provenance}（photo / accepted-frame / blockout）`);
+    } else if (provenance === "blockout" && style !== "stylized") {
+      errors.push(`subjects.${key} 的定妆锚是白模渲染（blockout）：模型只能给白模"染色"，不会"渲染"。换成真实照片或已验收成片帧；纯风格化项目请写 look.style="stylized"`);
+    }
     if (!Array.isArray(subject.locked) || subject.locked.length === 0) {
       errors.push(`subjects.${key}.locked 至少列 3 条「锁死项」（锚图里不许变的外观特征）`);
     }

@@ -320,10 +320,10 @@ async function main() {
     verdict: "off"
   };
   if (lodThreshold > 0) {
-    lod.verdict = lod.polygons >= lodThreshold ? "pass" : "fail";
-    if (lod.verdict === "fail") {
-      base.errors.push(`参考模型只有 ${lod.polygons.toLocaleString()} 个面（${shotSize || "默认"} 要求 ≥ ${lodThreshold.toLocaleString()}）：视频模型会继承这份拓扑复杂度，低模只能出低模。先建模（细分/置换/布料/倒角），不要涂色。`);
-      warnings.push("几何预算不足时，材质代理与提示词都救不回来——参考视频是几何真源");
+    // 低模本身不是问题：白模只提供运动骨架。这里只做提示，不拦生成。
+    lod.verdict = lod.polygons >= lodThreshold ? "pass" : "warn";
+    if (lod.verdict === "warn") {
+      warnings.push(`参考模型 ${lod.polygons.toLocaleString()} 面（${shotSize || "默认"} 参考 ≥ ${lodThreshold.toLocaleString()}）：低模可以，但近景/特写容易读成简单体块——写实度靠「照片级锚图 + look 段」，不靠堆面数。`);
     }
   }
 
@@ -407,7 +407,7 @@ async function main() {
   lines.push(`- 容差：位置 ≤ ${tolerance.position}（画面宽归一化），占宽相对偏差 ≤ ${Math.round(tolerance.size * 100)}%`);
   lines.push("");
   if (lod.verdict !== "off") {
-    lines.push(`- 几何预算：${lod.polygons.toLocaleString()} 面 / 要求 ≥ ${lod.threshold.toLocaleString()}（${lod.verdict === "pass" ? "通过" : "**不足**"}）`);
+    lines.push(`- 参考面数：${lod.polygons.toLocaleString()}（${lod.verdict === "pass" ? "够用" : "偏低，仅提示"}；写实度看锚图质量）`);
     lines.push("");
   }
   lines.push("| 候选 | 焦段 | 位置偏差 | 占宽偏差 | 出画 | 评分 |");

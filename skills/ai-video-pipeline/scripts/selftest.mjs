@@ -140,6 +140,12 @@ async function main() {
     const check = await run("contract-init.mjs", ["--project", root, "--check"]);
     record("contract-check-ok", check.code === 0 && check.json?.ok === true, check.json?.errors?.join("；"));
 
+    // 1.5) 白模渲染不能当定妆锚
+    await writeContract({ ...contract, subjects: { ...contract.subjects, character: { ...contract.subjects.character, anchorProvenance: "blockout" } } });
+    const badAnchor = await run("contract-init.mjs", ["--project", root, "--check"]);
+    record("contract-rejects-blockout-anchor", badAnchor.code === 1 && `${badAnchor.json?.errors ?? ""}`.includes("染色"), badAnchor.json?.errors?.[0]);
+    await writeContract(contract);
+
     // 2) 提示词生成
     const prep = await run("prep-shot.mjs", ["--project", root, "--shot", "shot_01", "--print"]);
     const prompt = prep.json?.prompt ?? "";
