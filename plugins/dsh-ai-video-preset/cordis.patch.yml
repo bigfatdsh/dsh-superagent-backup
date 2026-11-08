@@ -105,7 +105,7 @@
                 - 敏感/客户素材不得上传到 uguu 等第三方托管；`~/.dsh/secrets/ark-api-key` 是唯一 Key 文件，不在对话或命令里回显。
 
                 【成本与调用纪律（每一次提交都是钱）】
-                - 两级调用：`draft`（480p 样片，只验骨架/构图/一致性）→ `final`（交付画质）。**先 draft 后 final**，除非用户在 intake 里明确选 `draftPolicy=none`。
+                - 两级调用：`draft`（480p 样片，只验骨架/构图/一致性）→ `final`（**默认 720p**；用户明确要求才 1080p）。**先 draft 后 final**，除非用户在 intake 里明确选 `draftPolicy=none`。
                 - 每镜最多 2 次（含 draft）。第 3 次必须先改白模/锚图/契约，并让用户重新确认预算；不许"再抽一次试试"。
                 - 提交前必须 `produce.mjs gate --shot <id> --tier draft|final` 放行；提交后立刻 `produce.mjs record --taskId …` 记账；draft 通过后 `produce.mjs approve`。**gate 拒绝就停**，不许绕过、不许先跑后补。
                 - 一次只推进一个镜头：不并行盲抽、不预生成"备用镜头"、不整片重抽。
