@@ -27,6 +27,15 @@ const STUDIO = resolve(HERE, "../../../..");
 const DEFAULT_BLENDER = join(STUDIO, "tools/bin/blender");
 const DEFAULT_FFMPEG = join(STUDIO, "tools/bin/ffmpeg");
 const SCANNER = join(HERE, "scan_cameras.py");
+// 参考模型的「几何预算」：视频模型会继承参考的拓扑复杂度，低模只能出低模。
+// 数字是影视级 LOD 的经验门槛（评估后的多边形数），按景别要求不同。
+const LOD_THRESHOLDS = {
+  EWS: 20000, WS: 20000, LS: 20000, FS: 30000,
+  MWS: 50000, MS: 80000, MCU: 120000,
+  CU: 200000, ECU: 200000, "INSERT-CU": 200000, INSERT: 200000,
+  POV: 100000, OTS: 120000, "OTS-CU": 150000, "OTS-MS": 100000
+};
+const LOD_DEFAULT = 60000;
 const POSITION_TOLERANCE = 0.05; // 契约：主体位置偏移 ≤ 5% 画面宽
 const SIZE_TOLERANCE = 0.3;      // 占宽相对偏差
 
@@ -182,6 +191,11 @@ function scoreVariant(variant, probes) {
   };
 }
 
+function shotSizeOf(shotlist, shotId) {
+  const shot = (shotlist?.shots ?? []).find((item) => item.id === shotId);
+  return shot?.shot_size;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.blend) throw new Error("用法：node shot-scan.mjs --test --blend <scene.blend> (--plan <json> | --base \"from=..;look=..\" --lenses 50,65) [--project p --shot s] [--out dir]");
@@ -247,6 +261,15 @@ async function main() {
     position: Number(args["position-tolerance"] ?? contract?.scan?.tolerance?.position ?? POSITION_TOLERANCE),
     size: Number(args["size-tolerance"] ?? contract?.scan?.tolerance?.size ?? SIZE_TOLERANCE)
   };
+  // 超写实项目才卡几何预算；风格化（anime/cel）低模是合理的
+  const lookStyle = String(contract?.look?.style ?? "photoreal").toLowerCase();
+  let shotlist;
+  if (project) {
+    const shotlistPath = join(project, "shotlist.json");
+    if (await exists(shotlistPath)) shotlist = await readJson(shotlistPath);
+  }
+  const shotSize = String(shotSizeOf(shotlist, shotId) ?? "").toUpperCase();
+  const lodThreshold = lookStyle === "stylized" ? 0 : Number(contract?.scan?.lod?.[shotSize] ?? LOD_THRESHOLDS[shotSize] ?? LOD_DEFAULT);
   plan.probes = probes;
 
   const planPath = join(outDir, "scan-plan.json");
@@ -262,6 +285,8 @@ async function main() {
     probes,
     variants: plan.variants.length,
     tolerance,
+    lookStyle,
+    lod: { threshold: lodThreshold, style: lookStyle },
     warnings,
     errors: []
   };
@@ -285,6 +310,22 @@ async function main() {
   if (!(await exists(resultPath))) throw new Error("Blender 没有产出 scan-result.json");
   const raw = await readJson(resultPath);
   if (raw.missing_probes?.length) warnings.push(`场景里找不到这些探针物体：${raw.missing_probes.join(", ")}`);
+
+  const geometry = raw.geometry ?? {};
+  const lod = {
+    polygons: Number(geometry.polygons ?? 0),
+    objects: Number(geometry.objects ?? 0),
+    threshold: lodThreshold,
+    style: lookStyle,
+    verdict: "off"
+  };
+  if (lodThreshold > 0) {
+    lod.verdict = lod.polygons >= lodThreshold ? "pass" : "fail";
+    if (lod.verdict === "fail") {
+      base.errors.push(`参考模型只有 ${lod.polygons.toLocaleString()} 个面（${shotSize || "默认"} 要求 ≥ ${lodThreshold.toLocaleString()}）：视频模型会继承这份拓扑复杂度，低模只能出低模。先建模（细分/置换/布料/倒角），不要涂色。`);
+      warnings.push("几何预算不足时，材质代理与提示词都救不回来——参考视频是几何真源");
+    }
+  }
 
   const table = [];
   for (const variant of raw.variants ?? []) {
@@ -347,6 +388,8 @@ async function main() {
     verdict,
     recommended: verdict === "pass" ? best.id : null,
     best: best ?? null,
+    lod,
+    geometry: { polygons: lod.polygons, objects: lod.objects, top: geometry.top ?? [] },
     table,
     contact: contact ? contact.replace(`${STUDIO}/`, "") : null,
     resultPath,
@@ -363,6 +406,10 @@ async function main() {
   lines.push(`- 场景：\`${base.blend}\`，候选 ${plan.variants.length} 个，探针 ${probes.length} 个`);
   lines.push(`- 容差：位置 ≤ ${tolerance.position}（画面宽归一化），占宽相对偏差 ≤ ${Math.round(tolerance.size * 100)}%`);
   lines.push("");
+  if (lod.verdict !== "off") {
+    lines.push(`- 几何预算：${lod.polygons.toLocaleString()} 面 / 要求 ≥ ${lod.threshold.toLocaleString()}（${lod.verdict === "pass" ? "通过" : "**不足**"}）`);
+    lines.push("");
+  }
   lines.push("| 候选 | 焦段 | 位置偏差 | 占宽偏差 | 出画 | 评分 |");
   lines.push("|---|---|---|---|---|---|");
   for (const entry of table) {

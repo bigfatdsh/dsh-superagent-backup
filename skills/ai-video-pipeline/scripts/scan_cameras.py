@@ -164,6 +164,24 @@ def main():
     missing = [probe["object"] for probe in probes if bpy.data.objects.get(probe["object"]) is None]
     log(f"variants={len(variants)} times={times} probes={len(probes)} missing={missing}")
 
+    # 评估后的几何复杂度：参考视频会把拓扑复杂度一并传给视频模型
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    polygons = 0
+    top = []
+    for obj in bpy.data.objects:
+        if obj.type != "MESH":
+            continue
+        try:
+            evaluated = obj.evaluated_get(depsgraph)
+            mesh = evaluated.to_mesh()
+            count = len(mesh.polygons)
+            evaluated.to_mesh_clear()
+        except Exception:
+            count = len(obj.data.polygons)
+        polygons += count
+        top.append((count, obj.name, [modifier.type for modifier in obj.modifiers]))
+    top.sort(reverse=True)
+
     results = []
     for index, variant in enumerate(variants):
         camera, aim = make_camera(scene, variant)
@@ -205,6 +223,11 @@ def main():
         "resolution": [scene.render.resolution_x, scene.render.resolution_y],
         "times": times,
         "missing_probes": missing,
+        "geometry": {
+            "polygons": polygons,
+            "objects": len([obj for obj in bpy.data.objects if obj.type == "MESH"]),
+            "top": [{"name": name, "polygons": count, "modifiers": mods} for count, name, mods in top[:10]],
+        },
         "variants": results,
     }
     with open(os.path.join(out_dir, "scan-result.json"), "w", encoding="utf-8") as handle:
