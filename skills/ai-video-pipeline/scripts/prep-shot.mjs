@@ -266,6 +266,22 @@ async function main() {
   lines.push(`【内容正确性】必须同时看得见：${mustLines.join("；")}。`);
   if (entry.logic) lines.push(`物理逻辑：${entry.logic}`);
 
+  // ---------- 摄影与材质（超写实的可执行部分） ----------
+  const look = contract.look ?? {};
+  const cameraSpec = String(look.camera ?? "").trim();
+  const materials = [...(look.character_materials ?? []), ...(look.scene_materials ?? [])]
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+  lines.push("");
+  if (cameraSpec || materials.length > 0) {
+    lines.push("【摄影与材质 · 超写实的可执行部分】");
+    if (cameraSpec) lines.push(`摄影：${cameraSpec}。`);
+    if (materials.length > 0) lines.push(`材质：${materials.join("；")}。`);
+    lines.push("所有表面都要有真实微观纹理、边缘磨损与使用痕迹（指纹、油光、掉漆、织纹、积灰）；不允许均匀光滑的理想表面、不允许画上去的假反射。");
+  } else {
+    warnings.push("契约没有 look 段（摄影机/材质清单）：超写实只剩形容词，成片会滑向 CG 感（见 realism-playbook）");
+  }
+
   // ---------- 画面纪律 ----------
   lines.push("");
   lines.push("【画面纪律】全片一个机位、一个景别：不切镜、不换角度、不插入特写、结尾不拉远换构图；主体位置与景别以 @视频1 为准。不要要求跨帧维持弹孔、烟雾、水渍等累计状态，只表现单次事件。");
@@ -288,7 +304,12 @@ async function main() {
   if (/最后.{0,8}(看向|推到|拉远|拉开)/.test(shotText)) warnings.push("镜头文案含「最后…看向/拉远」类结尾动作：容易诱发尾段换机位，建议删掉");
 
   // ---------- 排除项：只留项目特有的，基础护栏交给 quality_guard ----------
-  const rawNegative = [shotlist.global?.negative ?? "", ...(entry.avoid ?? []), ...(contract.global_avoid ?? [])].join("；");
+  const rawNegative = [
+    shotlist.global?.negative ?? "",
+    ...(entry.avoid ?? []),
+    ...(contract.global_avoid ?? []),
+    ...(look.negative ?? [])
+  ].join("；");
   const { kept, dropped } = stripGuard(rawNegative);
   const negative = kept.join("；");
 
@@ -328,6 +349,7 @@ async function main() {
     duration,
     resolution: payloadResolution,
     promptChars: prompt.length,
+    look: { camera: Boolean(cameraSpec), materials: materials.length },
     images: imagePlan.map((item, index) => ({ ref: `@图片${index + 1}`, role: item.role, path: item.path })),
     videos: payload.reference_videos,
     negativePrompt: negative,

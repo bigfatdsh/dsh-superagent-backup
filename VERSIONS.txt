@@ -1,5 +1,5 @@
 super-agent 备份清单
-打包时间: 2026-11-08 09:43:19 CST（v1.2）
+打包时间: 2026-11-08 15:19:54 CST（v1.3）
 打包机器: macOS 26.6.2 arm64
 DSH: 0.2.2-rc.1
 node: v24.21.0
@@ -7,7 +7,13 @@ node: v24.21.0
 本机改动: src/infra/environment.ts + 新增 bridge/ + DEPLOYMENT-zh.md
 面板端口: 3082  (LaunchAgent com.bigfatdsh.superagent)
 
-本次增量（2026-11-08 v1.2）
+本次增量（2026-11-08 v1.3）
+- dsh-ai-video-preset 1.2.0 → 1.3.0：新增【超写实：参考里必须先有东西】+ F12；开工前补材质代理口径
+- 新增 proxy-render.mjs / proxy_render.py / proxy_style.py（材质代理参考视频）、qa-realism.mjs（1:1 超写实验收）
+- render-shot.mjs 支持 --proxy；契约新增 look / realism 段；prep-shot 自动生成【摄影与材质】
+- references 增 realism-playbook.md；selftest 19 → 20 项；verify-all 全绿
+
+上一轮增量（2026-11-08 v1.2）
 - dsh-ai-video-preset 1.1.0 → 1.2.0：先问用户 + 成本与调用纪律 + draft/final 两级协议 + F10/F11
 - 新增 shot-scan.mjs / scan_cameras.py（机位扫描 --test，投影对账）、produce.mjs（intake/plan/gate/record/approve/status）
 - prep-shot 支持 --tier 与 contractHash；references 增 cost-control.md
@@ -21,5 +27,5 @@ node: v24.21.0
 - restore.sh：新增 STUDIO_DIR，把管线 skill 装到 $STUDIO_DIR/.dsh/skills
 - 验证：verify-all.sh ALL OK（含 9 条 selftest）；range-test 真实成片 QA 抓出 6 硬失败 + 5 警告
 
-文件数: 298
-体积: 7.3M
+文件数: 303
+体积: 7.5M

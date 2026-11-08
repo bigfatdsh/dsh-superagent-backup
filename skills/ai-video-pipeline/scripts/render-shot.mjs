@@ -90,7 +90,7 @@ function run(command, args, options = {}) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.spec || !args.out) fail("用法：node render-shot.mjs --spec <shot.json> --out <dir> [--blender path] [--ffmpeg path] [--ffprobe path]");
+  if (!args.spec || !args.out) fail("用法：node render-shot.mjs --spec <shot.json> --out <dir> [--proxy] [--blender path] [--ffmpeg path] [--ffprobe path]");
   const specPath = resolve(args.spec);
   const spec = await loadJson(specPath);
   const { fps, duration, width, height } = validateSpec(spec);
@@ -108,9 +108,10 @@ async function main() {
   }
 
   const started = Date.now();
+  const style = args.proxy || spec?.render?.style === "proxy" ? "proxy" : "gray";
   const blenderRun = spawnSync(blender, [
     "-b", "--factory-startup", "--python", SHOT_BUILDER,
-    "--", "--spec", specPath, "--out", outDir
+    "--", "--spec", specPath, "--out", outDir, "--style", style
   ], { encoding: "utf8", timeout: 20 * 60 * 1000, maxBuffer: 128 * 1024 * 1024 });
   if (blenderRun.error) fail(`Blender 启动失败：${String(blenderRun.error.message ?? blenderRun.error)}`);
   if (blenderRun.status !== 0) {

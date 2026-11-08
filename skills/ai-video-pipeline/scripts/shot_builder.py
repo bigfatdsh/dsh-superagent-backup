@@ -437,6 +437,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--style", default="gray", choices=["gray", "proxy"])
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     args = parser.parse_args(argv)
     with open(args.spec, "r", encoding="utf-8") as handle:
@@ -453,6 +454,10 @@ def main():
     build_set(scene, spec, collection, set_material)
     actor = build_actor(scene, spec, collection, actor_material)
     configure_render(scene, spec, frames_dir)
+    if args.style == "proxy":
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import proxy_style
+        proxy_style.apply(scene, style="proxy")
     keyframe_actor(actor, spec)
     camera_info = build_camera(scene, spec, collection)
 
@@ -475,6 +480,7 @@ def main():
         "fps": int(spec.get("fps", 24)),
         "duration_seconds": float(spec.get("duration_seconds", 5)),
         "resolution": [int(scene.render.resolution_x), int(scene.render.resolution_y)],
+        "style": args.style,
         "frames": len(frames),
         "frames_dir": frames_dir,
         "first_frame": frames[0] if frames else None,

@@ -154,7 +154,43 @@ node .dsh/skills/ai-video-pipeline/scripts/shot-anchor.mjs \
 - `avoid` 是本镜特有的排除项，会进入 `negative_prompt`。基础护栏（字幕/水印/多指/
   白模材质…）由插件的 `quality_guard` 负责，**不要重复写**，`prep-shot.mjs` 会自动剔除。
 
-## 5.5 扫描容差（可选）
+## 5.4 超写实：`look` 段（v1.2 新增，强烈建议必填）
+
+```json
+"look": {
+  "camera": "ARRI ALEXA Mini LF + 35mm 定焦，T1.8，1/48s，ISO 800，3200K 实用顶光 + 5600K 侧补",
+  "character_materials": [
+    "盔壳：磨砂尼龙，边缘掉漆露底漆，导轨面有滑痕",
+    "护目镜：镀膜聚碳酸酯，细划痕与指纹油污"
+  ],
+  "scene_materials": ["混凝土地面：骨料颗粒、轮胎印、积灰"],
+  "negative": ["CG 渲染感", "游戏引擎画面", "塑料反光", "画上去的假反射"]
+}
+```
+
+`prep-shot.mjs` 会把它拼成【摄影与材质】段并把 `negative` 并入排除项；
+没有 `look` 段会告警——超写实只剩形容词，成片会滑向 CG 感。
+
+> 为什么必须写：参考视频是材质代理（见 `realism-playbook.md`），它只告诉模型"这块是什么材质"，
+> 不告诉它"这块材质在真实世界里长什么样"。后者只能靠这段文字。
+
+## 5.5 超写实验收：`realism` 段
+
+```json
+"realism": {
+  "thresholds": { "minDetail": 0.01, "range": 0.12, "grainWarn": 0.0005 },
+  "crops": [
+    { "shot": "shot_03", "id": "helmet", "at": [0.5, 0.3], "size": 0.3, "t": 2.0, "minDetail": 0.01 },
+    { "shot": "shot_04", "id": "paper",  "at": [0.5, 0.5], "size": 0.45, "t": 2.2, "minDetail": 0.006 }
+  ]
+}
+```
+
+- `at/size` 是归一化坐标与占宽；`t` 是取帧时间；`minDetail` 按材质单独放宽（纸、墙可以低）。
+- `qa-realism.mjs` 会输出 1:1 裁切图 + 三个指标；**缩略图不作数**。
+- 这些数字只判"过于平滑/过于干净"，判不了"像不像真东西"——那必须目视 1:1。
+
+## 5.6 扫描容差（可选）
 
 ```json
 "scan": { "tolerance": { "position": 0.05, "size": 0.3 } }

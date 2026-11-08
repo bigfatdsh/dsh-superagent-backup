@@ -169,6 +169,28 @@ node .dsh/skills/ai-video-pipeline/scripts/shot-scan.mjs --test \
 
 ## 3. 白模：先定骨架
 
+### 3.0 参考视频用「材质代理」，不要用平涂灰模
+
+平涂白模（Workbench FLAT + 单一灰 + 白背景）只能锁骨架。实测它渲出来**没有任何明暗与材质信息**，
+模型只能从剪影猜形体，于是把一切画成"光滑的简单体块"——这就是上一轮塑料感头盔、
+融成一坨的手枪、无缝线手套的来源（见 `references/realism-playbook.md`）。
+
+```bash
+# 新镜头：直接出代理参考视频
+node .dsh/skills/ai-video-pipeline/scripts/render-shot.mjs \
+  --spec projects/my-film/shot_01.json --out projects/my-film/renders/shot_01 --proxy
+
+# 已有 .blend：不改工程，渲代理（可同时渲 gray 做 A/B）
+node .dsh/skills/ai-video-pipeline/scripts/proxy-render.mjs \
+  --blend projects/my-film/blockout/scene.blend --camera shot_01_cam --frames 1-120 \
+  --out projects/my-film/blockout/proxy/shot_01 --style proxy
+```
+
+代理做了什么：按物体名分材质区（皮肤/织物/装备/金属/纸/混凝土/黄铜）、平滑着色、
+STUDIO 光照 + 阴影 + 空腔 + 高光、中性灰背景；枪口焰/粉尘默认隐藏（白模里那是个球）。
+
+分类不对时用 `--map "hand=gear"` 覆盖。**代理颜色是材质约定**：它告诉模型"这块是织物、那块是金属"。
+
 ### 3.1 有走位/运镜的镜头：用 shot builder
 
 编辑 `shot_01.json`：
@@ -246,6 +268,7 @@ tools/bin/ffmpeg -y -framerate 24 -i <frames>/frame_%04d.png \
 - **主体位置也要一致**：白模里靶纸占画面多少、在哪个位置，输出就必须一样。文字写“画面正中”，白模给的却是偏左小靶——模型听白模的。把主体在白模里摆到契约位置，再用 `must_show.at/size` 落成可校验的坐标。
 - **道具比例要有数字**：文字写“黑色环靶”，每镜可以画得完全不同。给一张道具特写锚图 + `ratios`（环外径/纸宽、环宽/外径）。
 - **单镜单机位**：5 秒里塞两个动作单元，模型会在尾段自己“收尾”——通常就是切机位。5s 最多 2 个节拍。
+- **参考里没有的，形容词补不上**：平涂灰块 → 模型照抄"光滑简单体块"。参考视频用材质代理，材质/磨损写进契约 `look` 段。
 
 ### 3.4 白模验收（硬门）
 
@@ -277,7 +300,7 @@ node .dsh/skills/ai-video-pipeline/scripts/prep-shot.mjs --project projects/my-f
 1. **继承声明**：`参考 @视频1 的运镜、动作路径、角色站位、景别变化、镜头顺序与节奏；白模只提供运动与机位骨架，不要参考它的灰色材质和几何外观。`
 2. **素材分工**：`将 @视频1 中的白色人偶映射为 @图片1 的[角色描述]；场景使用 @图片2 的[环境/光线/色温/材质]；道具参考 @图片3。`
 3. **镜头/动作**：景别、机位、运镜、主体动作、时间戳（0-2s / 2-5s）。
-4. **风格/质感**：写实电影质感、镜头焦段、光线、调色、皮肤肌理。
+4. **摄影与材质**：机身/焦段/光圈/快门/ISO/色温 + 逐件装备的"材质 + 使用痕迹"。这一段由 `prep-shot.mjs` 从契约 `look` 段自动生成；没有 `look` 段它会告警。
 5. **严格排除**：无字幕/水印/文字；不保留白模材质、轨迹线、坐标轴、网格线、相机锥体；手部不入画；不出现多指/少指/畸形手/身份漂移；避免过度磨皮/蜡感/塑料感。
 
 完整模板见 `references/prompt-templates.md`。
@@ -414,6 +437,21 @@ node .dsh/skills/ai-video-pipeline/scripts/qa-consistency.mjs \
 声画那一条尤其重要：模型音频的落点由模型自己决定，实测偏差可达 1.27s。
 **时间敏感的动作一律 `generate_audio=false`，后期按帧配音。**
 
+### 6.2 超写实验收：只认 1:1
+
+```bash
+node .dsh/skills/ai-video-pipeline/scripts/qa-realism.mjs --project projects/my-film
+```
+
+- 强制 **1:1 裁切**（不缩放）出证据图：`qa/realism/<shot>-<crop>.png`。
+- 三个数字：`detail`（纹理能量）、`grain`（高频残差）、`range`（动态范围）。
+- 阈值按**单个作物**设 `minDetail`（纸/墙面这类本来就光滑的单独放宽），不要全局放水。
+- `grain` 压缩后会失真，只作提示不参与硬判定。
+- 这些指标只能指出"过于平滑/过于干净/光太平"，**不能证明照片级**——身份与材质必须看 1:1 图。
+
+实测基准（576×576）：平涂白模 detail 0.0027；上一轮成片盔壳 0.0083 / 手枪 0.0036；
+同一帧加颗粒后 0.0158。低于 0.010 基本就是"光滑塑料"。
+
 ## 7. 局部精修与续写
 
 ### 7.1 只改局部，不重抽整条
@@ -515,6 +553,10 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 | `shot-scan` verdict=fail | 主体位置/占宽与契约不符，或主体出画 | 改白模机位或改契约 `at/size`（改后重扫） |
 | 扫描 `probe` 未测到 | `object` 名写错/被隐藏/在相机背后 | 用 Blender 里真实的物体名；确认在白模里可见 |
 | 预算快超 | 返工多、或没用 draft | `produce.mjs status` 看账；停手改结构 |
+| 成片像 CG / 塑料感 | 参考视频是平涂灰模；prompt 只有形容词 | 换材质代理参考 + 补 `look` 段；`qa-realism` 1:1 复核 |
+| 金属边缘糊成一团 | 白模里就是几个方块；契约没写机加工细节 | 代理分类确认是 metal；`look.character_materials` 写"磷化钢、棱边磨损" |
+| 镜片反光是画上去的白条 | prompt 没指定真实光源关系 | 写清"反射画面里的条形灯"，并把 `look.negative` 加上"画上去的假反射" |
+| 手套/织物没有缝线织纹 | 参考里没有，prompt 也没写 | `look` 段写 Cordura/针织/猪皮 + 缝线；1:1 复核 |
 
 ## 10. 反模式
 
@@ -542,6 +584,10 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 - ❌ 绕过 `produce.mjs gate`，或提交后忘记 `record`。
 - ❌ 一次并行盲抽多条镜头。
 - ❌ 拿 480p 样片判断画质。
+- ❌ 用平涂灰模当参考视频（只能锁骨架，不能写实化）。
+- ❌ 只用"超写实/8K/电影感"这类形容词，不写机身/材质/磨损。
+- ❌ 拿成片帧当定妆锚（把 CG 感固化成身份标准）。
+- ❌ 看缩略图验收超写实。
 
 ## 11. 相关文件
 
@@ -552,7 +598,9 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 - `references/shotlist-format.md`：shotlist 字段说明
 - `references/blender-shot-spec.md`：shot builder spec 字段说明
 - `scripts/doctor.mjs` / `new-project.mjs` / `render-shot.mjs` / `validate-shotlist.mjs` / `set-ark-key.mjs`
+- `references/realism-playbook.md`：超写实复盘、材质代理、1:1 验收、反模式
 - `references/cost-control.md`：成本指数、三级样片策略的账、8 项门禁、一次通过清单
 - `scripts/contract-init.mjs`（契约生成/校验）/ `prep-shot.mjs`（确定性提示词 + tier）/ `qa-consistency.mjs`（证据制 QA）/ `shot-anchor.mjs`（衔接锚截帧）
 - `scripts/shot-scan.mjs` + `scan_cameras.py`（机位扫描 `--test`，投影对账）/ `produce.mjs`（intake/plan/gate/record/approve/status）
+- `scripts/proxy-render.mjs` + `proxy_render.py` + `proxy_style.py`（材质代理参考视频）/ `qa-realism.mjs`（1:1 超写实验收）
 - `scripts/selftest.mjs`（18 项工具链自测）/ `build-prompt.mjs` / `qa-video.mjs`

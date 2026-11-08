@@ -109,6 +109,12 @@ async function main() {
       title: "selftest",
       format: { ratio: "16:9", resolution: [320, 180], fps: 24 },
       grade: { look: "中性灰", tolerance: { luma: 0.05, saturationRelative: 0.25 } },
+      look: {
+        camera: "ARRI ALEXA Mini LF + 50mm 定焦，T2.0，1/48s，ISO 800",
+        character_materials: ["盔壳：磨砂尼龙，边缘掉漆", "手套：猪皮，掌心油亮"],
+        scene_materials: ["混凝土：骨料颗粒与积灰"],
+        negative: ["CG 渲染感", "塑料反光"]
+      },
       subjects: {
         character: { anchor: "blockout/anchors/character.jpg", text: "测试主体", locked: ["外观 A", "外观 B", "外观 C"] },
         scene: { anchor: "blockout/anchors/scene.jpg", text: "测试场景", locked: ["结构 A", "结构 B", "结构 C"] },
@@ -140,6 +146,7 @@ async function main() {
     record("prep-shot-ok", prep.code === 0 && prep.json?.ok === true, prep.json?.errors?.join("；"));
     record("prep-shot-contract-block", prompt.includes("【一致性契约") && prompt.includes("@视频1") && prompt.includes("@图片1"), `${prompt.length} chars`);
     record("prep-shot-negative-trim", !String(prep.json?.negativePrompt ?? "").includes("字幕"), `negative="${prep.json?.negativePrompt ?? ""}"`);
+    record("prep-shot-realism-block", prompt.includes("【摄影与材质") && prompt.includes("ARRI") && prompt.includes("磨砂尼龙"), prep.json?.look ? `camera=${prep.json.look.camera} materials=${prep.json.look.materials}` : "no look");
 
     // 3) 反例：must_show 为空
     await writeContract({ ...contract, shots: { shot_01: { ...contract.shots.shot_01, must_show: [] } } });
@@ -162,6 +169,12 @@ async function main() {
     await writeContract({ ...contract, shots: { shot_01: { ...contract.shots.shot_01, cues: [{ t: 0.5, event: "第一声" }, { t: 1.5, event: "错位的一声" }] } } });
     const qaBad = await run("qa-consistency.mjs", ["--project", root, "--video", `shot_01=${video}`]);
     record("qa-consistency-detects-audio-drift", qaBad.code === 1 && (qaBad.json?.hardFailures ?? []).some((item) => item.includes("声画不同步")), qaBad.json?.hardFailures?.[0]);
+
+    // 6.5) 超写实验收：纯灰画面必须被判"过于平滑"
+    await writeContract({ ...contract, realism: { crops: [{ shot: "shot_01", id: "flat", at: [0.5, 0.5], size: 0.5, t: 1.0, minDetail: 0.01 }] } });
+    const realismBad = await run("qa-realism.mjs", ["--project", root, "--video", `shot_01=${video}`]);
+    record("qa-realism-detects-flat", realismBad.code === 1 && `${realismBad.json?.failures ?? ""}`.includes("过于平滑"), realismBad.json?.failures?.[0]);
+    await writeContract(contract);
 
     // 7) 制片门禁：问卷 → 确认 → 放行 → 契约改了要重新 prep → 记账 → 超限拒绝
     const questions = await run("produce.mjs", ["intake", "--project", root, "--questions"]);
