@@ -5,6 +5,14 @@
 >
 > 铁律：**每条"通过"后面必须能贴出一个文件路径。** 没有证据的"通过"等于没验。
 
+## 0. 一条命令
+
+```bash
+node .dsh/skills/ai-video-pipeline/scripts/checkup.mjs --project projects/<name>
+```
+
+FAIL 项逐条修；WARN 项要么修，要么在报告里写明为什么接受。
+
 ## A. 提交前（硬门）
 
 - [ ] 用户已确认 8 项制片参数（`run.json.confirmed.byUser=true`）

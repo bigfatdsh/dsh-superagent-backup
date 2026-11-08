@@ -179,17 +179,19 @@ function metrics({ data, width, height }) {
   };
 }
 
-async function resolveVideo(root, shot, args, videoDir) {
+async function resolveVideo(root, shot, args, videoDir, taskIdOverride) {
   const override = args.video.find((entry) => entry.startsWith(`${shot}=`));
   if (override) {
     const path = override.slice(shot.length + 1);
     const absolute = await pickPath(root, path);
     return (await exists(absolute)) ? absolute : { missing: absolute };
   }
-  const taskId = args.taskId ?? shot;
+  const taskId = taskIdOverride ?? args.taskId ?? shot;
   for (const candidate of [
     join(videoDir, `${taskId}.mp4`),
-    join(root, "output/seedance", `${taskId}.mp4`)
+    join(root, "output/seedance", `${taskId}.mp4`),
+    join(root, "../output/seedance", `${taskId}.mp4`),
+    join(root, "../../output/seedance", `${taskId}.mp4`)
   ]) {
     if (await exists(candidate)) return candidate;
   }
@@ -210,6 +212,27 @@ function warningsOf(row, thresholds) {
   return messages;
 }
 
+async function resolveVideoDir(root, explicit) {
+  // 显式指定：必须存在，否则报清楚（不要静默落到 CWD）
+  if (explicit) {
+    const resolved = await pickPath(root, explicit);
+    if (!(await stat(resolved).then((info) => info.isDirectory(), () => false))) {
+      throw new Error(`--video-dir 不存在：${resolved}（相对路径会先按 CWD、再按项目根解析）`);
+    }
+    return resolved;
+  }
+  // 未指定：从项目根往上找 output/seedance（兼容 <ws>/projects/<p> 布局）
+  const candidates = [
+    join(root, "output/seedance"),
+    join(root, "../output/seedance"),
+    join(root, "../../output/seedance")
+  ];
+  for (const candidate of candidates) {
+    if (await stat(candidate).then((info) => info.isDirectory(), () => false)) return candidate;
+  }
+  return candidates[0];
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.project) throw new Error("用法：node qa-realism.mjs --project projects/<name> [--video-dir dir] [--video shot=path] [--strict]");
@@ -220,12 +243,22 @@ async function main() {
   const crops = realism.crops ?? [];
   if (crops.length === 0) throw new Error("契约没有 realism.crops：先写清楚要检查哪些 1:1 区域");
   const thresholds = { ...DEFAULTS, ...(realism.thresholds ?? {}) };
-  const videoDir = args["video-dir"] ? await pickPath(root, args["video-dir"]) : join(root, "output/seedance");
+  const videoDir = await resolveVideoDir(root, args["video-dir"]);
   const outDir = resolve(args.out ?? join(root, "qa"));
   const cropDir = join(outDir, "realism");
   await mkdir(cropDir, { recursive: true });
 
   const taskByShot = new Map((shotlist.shots ?? []).map((shot) => [shot.id, shot.result?.taskId]));
+  // run.json 账本里的最后一次调用优先（可能是 480p 样片轮）
+  try {
+    const runPath = join(root, "run.json");
+    if (await exists(runPath)) {
+      const run = JSON.parse(await readFile(runPath, "utf8"));
+      for (const entry of run.ledger ?? []) {
+        if (entry.shot && entry.taskId) taskByShot.set(entry.shot, entry.taskId);
+      }
+    }
+  } catch {}
   const rows = [];
   const failures = [];
   const warnings = [];
@@ -233,7 +266,7 @@ async function main() {
   for (const crop of crops) {
     const shotId = crop.shot;
     const taskId = taskByShot.get(shotId) ?? shotId;
-    const video = await resolveVideo(root, shotId, { ...args, taskId }, videoDir);
+    const video = await resolveVideo(root, shotId, { ...args, taskId }, videoDir, taskId);
     if (!video || typeof video === "object") {
       failures.push(`${shotId}: 缺少成片（${video?.missing ?? ""}）`);
       continue;

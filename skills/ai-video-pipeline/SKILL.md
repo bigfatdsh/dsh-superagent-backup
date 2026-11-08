@@ -449,6 +449,16 @@ node .dsh/skills/ai-video-pipeline/scripts/qa-consistency.mjs \
 声画那一条尤其重要：模型音频的落点由模型自己决定，实测偏差可达 1.27s。
 **时间敏感的动作一律 `generate_audio=false`，后期按帧配音。**
 
+### 6.0 一条命令体检
+
+```bash
+node .dsh/skills/ai-video-pipeline/scripts/checkup.mjs --project projects/my-film
+node .dsh/skills/ai-video-pipeline/scripts/checkup.mjs --all --dir projects   # 全部项目
+```
+
+依次检查：文件 → 契约 → 预算/账本 → 机位扫描 → **提示词新鲜度**（`contractHash`，契约改过会标 stale）→
+一致性 QA → 超写实 QA → 交付物。FAIL / WARN / PASS 一眼看出哪一层没做。
+
 ### 6.2 超写实验收：只认 1:1
 
 ```bash
@@ -615,4 +625,4 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 - `scripts/contract-init.mjs`（契约生成/校验）/ `prep-shot.mjs`（确定性提示词 + tier）/ `qa-consistency.mjs`（证据制 QA）/ `shot-anchor.mjs`（衔接锚截帧）
 - `scripts/shot-scan.mjs` + `scan_cameras.py`（机位扫描 `--test`，投影对账）/ `produce.mjs`（intake/plan/gate/record/approve/status）
 - `scripts/proxy-render.mjs` + `proxy_render.py` + `proxy_style.py`（材质代理参考视频）/ `qa-realism.mjs`（1:1 超写实验收）
-- `scripts/selftest.mjs`（18 项工具链自测）/ `build-prompt.mjs` / `qa-video.mjs`
+- `scripts/checkup.mjs`（一条命令项目体检）/ `scripts/selftest.mjs`（21 项工具链自测）/ `build-prompt.mjs` / `qa-video.mjs`

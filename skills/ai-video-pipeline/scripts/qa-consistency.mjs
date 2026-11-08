@@ -31,6 +31,7 @@ const GRID_W = 16;
 const GRID_H = 9;
 const LUMA_W = 32;
 const LUMA_H = 18;
+const RESOLUTIONS = { "480p": [854, 480], "720p": [1280, 720], "1080p": [1920, 1080] };
 const AUDIO_RATE = 16000;
 const AUDIO_WINDOW = 0.05;
 
@@ -250,12 +251,14 @@ async function resolveVideo(root, shot, args, videoDir) {
     const absolute = await pickPath(root, path);
     return (await exists(absolute)) ? absolute : { missing: absolute };
   }
-  const taskId = shot.result?.taskId;
+  const taskId = shot.taskId;
   if (!taskId) return undefined;
   for (const candidate of [
     join(videoDir, `${taskId}.mp4`),
     join(root, "output/seedance", `${taskId}.mp4`),
-    join(root, "output", `${taskId}.mp4`)
+    join(root, "output", `${taskId}.mp4`),
+    join(root, "../output/seedance", `${taskId}.mp4`),
+    join(root, "../../output/seedance", `${taskId}.mp4`)
   ]) {
     if (await exists(candidate)) return candidate;
   }
@@ -348,6 +351,27 @@ function markdown(report) {
   return `${lines.join("\n")}\n`;
 }
 
+async function resolveVideoDir(root, explicit) {
+  // 显式指定：必须存在，否则报清楚（不要静默落到 CWD）
+  if (explicit) {
+    const resolved = await pickPath(root, explicit);
+    if (!(await stat(resolved).then((info) => info.isDirectory(), () => false))) {
+      throw new Error(`--video-dir 不存在：${resolved}（相对路径会先按 CWD、再按项目根解析）`);
+    }
+    return resolved;
+  }
+  // 未指定：从项目根往上找 output/seedance（兼容 <ws>/projects/<p> 布局）
+  const candidates = [
+    join(root, "output/seedance"),
+    join(root, "../output/seedance"),
+    join(root, "../../output/seedance")
+  ];
+  for (const candidate of candidates) {
+    if (await stat(candidate).then((info) => info.isDirectory(), () => false)) return candidate;
+  }
+  return candidates[0];
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.project) throw new Error("用法：node qa-consistency.mjs --project projects/<name> [--video-dir dir] [--video shot_01=path] [--strict]");
@@ -356,9 +380,7 @@ async function main() {
   const contractPath = join(root, "consistency.json");
   if (!(await exists(contractPath))) throw new Error(`缺少 ${contractPath}：先建契约，否则无法判定一致性`);
   const contract = await readJson(contractPath);
-  const videoDir = args["video-dir"]
-    ? await pickPath(root, args["video-dir"])
-    : join(root, "output/seedance");
+  const videoDir = await resolveVideoDir(root, args["video-dir"]);
   const outDir = args.out
     ? (isAbsolute(args.out) ? args.out : join(root, args.out))
     : join(root, "qa");
@@ -370,6 +392,18 @@ async function main() {
     saturationRelative: Number(contract.grade?.tolerance?.saturationRelative ?? 0.25),
     audio: Number(contract.audio?.tolerance ?? 0.2)
   };
+  // 本轮实际交付档位看 run.json 的账本：样片轮就按 480p 判，不要拿契约里的交付分辨率误杀
+  const ledgerResolution = new Map();
+  const ledgerTask = new Map();
+  const runPath = join(root, "run.json");
+  if (await exists(runPath)) {
+    const run = await readJson(runPath);
+    for (const entry of run.ledger ?? []) {
+      if (!entry.shot) continue;
+      if (entry.resolution) ledgerResolution.set(entry.shot, entry.resolution);
+      if (entry.taskId) ledgerTask.set(entry.shot, entry.taskId);
+    }
+  }
   const target = {
     width: Number(contract.format?.resolution?.[0] ?? shotlist.format?.resolution?.[0] ?? 0),
     height: Number(contract.format?.resolution?.[1] ?? shotlist.format?.resolution?.[1] ?? 0),
@@ -383,7 +417,7 @@ async function main() {
   const mustShow = [];
 
   for (const shot of shotlist.shots ?? []) {
-    const resolved = await resolveVideo(root, shot, args, videoDir);
+    const resolved = await resolveVideo(root, { ...shot, taskId: ledgerTask.get(shot.id) ?? shot.result?.taskId }, args, videoDir);
     const entry = contract.shots?.[shot.id] ?? {};
     if (!resolved || typeof resolved === "object") {
       hardFailures.push(`${shot.id}: 缺少成片${resolved?.missing ? `（${resolved.missing}）` : ""}`);
@@ -394,8 +428,14 @@ async function main() {
     const tech = await probe(resolved);
     const techProblems = [];
     const expectedDuration = Number(shot.duration ?? contract.format?.duration ?? 5);
+    const tierResolution = ledgerResolution.get(shot.id);
+    const [expectWidth, expectHeight] = tierResolution && RESOLUTIONS[tierResolution]
+      ? RESOLUTIONS[tierResolution]
+      : [target.width, target.height];
     if (Math.abs(tech.duration - expectedDuration) > 0.6) techProblems.push(`时长 ${fmt(tech.duration, 2)}s ≠ ${expectedDuration}s`);
-    if (target.width && (tech.width !== target.width || tech.height !== target.height)) techProblems.push(`分辨率 ${tech.width}×${tech.height} ≠ ${target.width}×${target.height}`);
+    if (expectWidth && (tech.width !== expectWidth || tech.height !== expectHeight)) {
+      techProblems.push(`分辨率 ${tech.width}×${tech.height} ≠ ${expectWidth}×${expectHeight}${tierResolution ? `（本轮档位 ${tierResolution}）` : ""}`);
+    }
     if (target.fps && Math.abs(tech.fps - target.fps) > 0.5) techProblems.push(`fps ${fmt(tech.fps, 1)} ≠ ${target.fps}`);
     if (techProblems.length > 0) hardFailures.push(`${shot.id}: ${techProblems.join("；")}`);
 
@@ -430,7 +470,12 @@ async function main() {
         const delta = Number.isFinite(nearest.t) ? nearest.t - Number(cue.t) : NaN;
         const ok = Number.isFinite(delta) && Math.abs(delta) <= tolerance.audio + 1e-6;
         audioRows.push({ shot: shot.id, cue: Number(cue.t), peak: nearest.t, delta, tolerance: tolerance.audio, ok });
-        if (!ok) hardFailures.push(`${shot.id}: 声画不同步 —— 声明 ${fmt(cue.t, 2)}s「${cue.event}」，实际峰值 ${fmt(nearest.t, 2)}s（偏差 ${fmt(delta, 2)}s > ${tolerance.audio}s）`);
+        if (!ok) {
+          const message = `${shot.id}: 声画不同步 —— 声明 ${fmt(cue.t, 2)}s「${cue.event}」，实际峰值 ${fmt(nearest.t, 2)}s（偏差 ${fmt(delta, 2)}s > ${tolerance.audio}s）`;
+          // 用户在 intake/契约里明确接受"模型音频漂移"时，降级为警告（记录但不判死）
+          if (contract.audio?.acceptDrift === true) warnings.push(`${message}（已声明 acceptDrift，不计硬失败）`);
+          else hardFailures.push(message);
+        }
       }
     } else if ((entry.cues ?? []).some((cue) => cue.audio !== false)) {
       warnings.push(`${shot.id}: 本镜无音轨，声画只能在终剪或后期配音后校验（未验证）`);
