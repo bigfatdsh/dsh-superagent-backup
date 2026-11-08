@@ -136,7 +136,7 @@ async function main() {
   const duration = Number(seedance.duration ?? shot.duration ?? 5);
   const formatResolution = contract.format?.resolution ?? shotlist.format?.resolution ?? [1280, 720];
   const tier = args.tier === "draft" ? "draft" : "final";
-  const payloadResolution = tier === "draft" ? "480p" : (seedance.resolution ?? "1080p");
+  const payloadResolution = tier === "draft" ? "480p" : (seedance.resolution ?? "720p");
   const fps = contract.format?.fps ?? shotlist.format?.fps ?? 24;
   const entry = contract.shots?.[shotId] ?? {};
 

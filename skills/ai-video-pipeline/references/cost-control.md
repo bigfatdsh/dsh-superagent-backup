@@ -18,23 +18,25 @@
 | 画质 | 像素比 | 5 秒一条 | 说明 |
 | --- | --- | --- | --- |
 | 480p | 1.00 | **5.0** | 样片档；Seedance 原生 `draft` 模式 |
-| 720p | 2.25 | **11.25** | 折中档 |
-| 1080p | 5.06 | **25.3** | 交付档 |
+| 720p | 2.25 | **11.25** | **默认交付档** |
+| 1080p | 5.06 | **25.3** | 只在有要求时用 |
 
 > 这只是**相对成本**，方便你设上限和比较方案；换算成钱请填 `unitPriceYuan`
 > （去方舟控制台查单价），`produce.mjs plan` 会附估算。不要拿这个指数当账单。
 
 ## 2. 三种样片策略，先算再选
 
-4 镜 × 5 秒、交付 1080p：
+4 镜 × 5 秒、**默认交付 720p**：
 
 | 策略 | 调用数 | 成本指数 | 适用 |
 | --- | --- | --- | --- |
-| `none`（直接交付） | 4 | **101** | 镜头简单、机位固定、之前跑过同款 |
-| `risky`（只给高风险出样片） | 5 | **106** | 4 镜里有 1 镜是新机位/新人设 |
-| `all`（每镜先 480p 样片） | 8 | **121** | 默认推荐：≤6 镜的新片 |
+| `none`（直接交付） | 4 | **45** | 镜头简单、机位固定、之前跑过同款 |
+| `risky`（只给高风险出样片） | 5 | **50.6** | 4 镜里有 1 镜是新机位/新人设 |
+| `all`（每镜先 480p 样片） | 8 | **65** | 默认推荐：≤6 镜的新片 |
 
-**关键账**：一条 1080p 5 秒返工 = 25.3 指数 ≈ **5 条 480p 样片**。
+同样 4 镜若交付 1080p：`none` 101 / `risky` 106 / `all` 121。
+
+**关键账**：一条 720p 5 秒返工 = 11.25 指数 ≈ **2.25 条 480p 样片**；1080p 则是 25.3 ≈ 5 条。
 也就是说，只要样片帮你避开**一次**整镜返工，`all` 就和 `none` 打平；避开两次就赚。
 
 作为对比，上一轮实际是 **228 指数**（9 次 × 1080p 5 秒）。同样的片子，
@@ -56,7 +58,7 @@ intake（问用户）→ contract（契约）→ shot-scan --test（机位扫描
 node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> --questions
 # 把这 8 项用 ask_user_question 问完，然后：
 node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> \
-  --set "deliveryResolution=1080p,durationPerShot=5,ratio=16:9,generateAudio=false,shotCount=4,draftPolicy=all,maxPaidCalls=6,maxCallsPerShot=2,requireScan=true" \
+  --set "deliveryResolution=720p,durationPerShot=5,ratio=16:9,generateAudio=false,shotCount=4,draftPolicy=all,maxPaidCalls=8,maxCallsPerShot=2,requireScan=true" \
   --confirm --note "用户在对话框确认（2026-11-08）"
 ```
 
@@ -172,9 +174,9 @@ ffmpeg -i in720.mp4 -vf "scale=1920:1080:flags=lanczos,unsharp=3:3:0.4,noise=all
 | --- | --- |
 | 远景 / 全景 / 剪影 | 480p 或 720p + 超分 |
 | 中景 | 720p + 超分 |
-| 特写 / 大特写 | 1080p 直出 |
+| 特写 / 大特写 | 720p 直出；用户要求时再 1080p |
 
-一个 6 镜片子里，通常只有 1–2 个特写需要 1080p 直出。
+默认全片 720p；1080p 只在用户明确要求（或片子里确有 1–2 个必须 4K 级细节的特写）时才上。
 
 ### 6.6 关掉模型音频（省一次"为声音重试"）
 
@@ -208,7 +210,7 @@ ffmpeg -i in720.mp4 -vf "scale=1920:1080:flags=lanczos,unsharp=3:3:0.4,noise=all
 | --- | --- | --- |
 | 参考模型 | 低模（5,883 面） | 高模（≥ 8 万面）+ 材质代理 |
 | 环境 | 全交给 Seedance | Cycles 渲染 + 合成（0 指数） |
-| 角色镜头 | 3 × 1080p = 75.9 | 3 × 720p = 33.75（+ 本地超分） |
+| 角色镜头 | 3 × 720p = 33.75（默认） | 3 × 720p = 33.75（1080p 需 75.9） |
 | 样片 | 无 | 3 × 480p = 15（拦掉结构性错误） |
 | 音频 | 模型音频 | 后期拟音（0） |
-| **合计** | **75.9（且大概率返工）** | **48.75（含样片，通过率高）** |
+| **合计** | **75.9（1080p，且大概率返工）** | **48.75（720p + 样片，通过率高）** |

@@ -185,6 +185,7 @@ async function main() {
     // 7) 制片门禁：问卷 → 确认 → 放行 → 契约改了要重新 prep → 记账 → 超限拒绝
     const questions = await run("produce.mjs", ["intake", "--project", root, "--questions"]);
     record("produce-intake-questions", questions.code === 0 && (questions.json?.questions ?? []).length >= 6, `${questions.json?.questions?.length ?? 0} 题`);
+    record("produce-default-720p", questions.json?.current?.deliveryResolution === "720p", `默认交付=${questions.json?.current?.deliveryResolution}`);
 
     const confirmed = await run("produce.mjs", ["intake", "--project", root,
       "--set", "deliveryResolution=480p,draftResolution=480p,durationPerShot=4,shotCount=1,maxPaidCalls=2,maxCallsPerShot=1,draftPolicy=none,requireScan=false",

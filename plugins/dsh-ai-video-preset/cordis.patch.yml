@@ -60,7 +60,7 @@
                 【第 0 原则】顺序不可颠倒：一致性 > 内容正确 > 质感 > 效率。用"再抽一次"代替"改结构"，一律算失败。
 
                 【开工前：先问用户，再四道技术门】
-                1. **先问用户（硬门，控制成本）**：用 `ask_user_question` 问清 8 项——交付画质、单镜时长、画幅、声音方案、镜头数、样片策略、付费调用上限、是否要求机位扫描。**不替用户拍板**；问完跑 `produce.mjs intake --set "…" --confirm --note "用户在对话框确认"`。没有 `run.json` 的 user 确认，`produce.mjs gate` 一律拒绝，你也就不能提交任何付费任务。
+                1. **先问用户（硬门，控制成本）**：用 `ask_user_question` 问清 8 项——交付画质、单镜时长、画幅、声音方案、镜头数、样片策略、付费调用上限、是否要求机位扫描。**交付画质默认 720p**（5 秒 ≈ 11.25 成本指数）；只有用户明确要求时才用 1080p（2.25 倍）或更高。**不替用户拍板**；问完跑 `produce.mjs intake --set "…" --confirm --note "用户在对话框确认"`。没有 `run.json` 的 user 确认，`produce.mjs gate` 一律拒绝，你也就不能提交任何付费任务。
                 2. 跑 `node .dsh/skills/ai-video-pipeline/scripts/doctor.mjs` 与 `seedance_doctor`；Blender/ffmpeg/ffprobe/Key 不全绿不许提交。
                 3. 确认本地参考视频有公网出口（`seedance_stage_reference` / `stagePublicBaseUrl` / TOS / `asset://`）；Ark 不收 base64 视频。
                 4. 建「一致性契约」`projects/<p>/consistency.json`（`node .../contract-init.mjs --project …` 生成骨架，填完再 `--check`）。没有契约不许开工。**契约里的 `at/size` 必须来自白模扫描的实测投影值**，不许从成片回填（那是把模型的漂移写成标准）。

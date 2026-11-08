@@ -2,7 +2,7 @@
 // 制片成本门禁：先问用户 → 再锁预算 → 再逐镜放行。
 //
 //   node produce.mjs intake  --project projects/p                # 打印问卷（交给 ask_user_question）
-//   node produce.mjs intake  --project projects/p --set deliveryResolution=1080p,durationPerShot=5
+//   node produce.mjs intake  --project projects/p --set deliveryResolution=720p,durationPerShot=5
 //   node produce.mjs intake  --project projects/p --confirm --note "用户已在对话框确认"
 //   node produce.mjs plan    --project projects/p
 //   node produce.mjs gate    --project projects/p --shot shot_01 --tier draft|final
@@ -75,7 +75,7 @@ function parseSet(text) {
 
 function questions() {
   return [
-    { id: "deliveryResolution", header: "交付画质", question: "成片要什么画质？（直接决定每次生成的成本：1080p ≈ 720p 的 2.25 倍 ≈ 480p 的 5 倍）", options: ["1080p（交付推荐）", "720p（省一半）", "480p（只做草稿）"] },
+    { id: "deliveryResolution", header: "交付画质", question: "成片要什么画质？（默认 720p：一条 5 秒 ≈ 11.25 成本指数；1080p 是 2.25 倍，只在有要求时上）", options: ["720p（默认推荐）", "1080p（有要求再上）", "480p（只做草稿）"] },
     { id: "durationPerShot", header: "单镜时长", question: "每个镜头多长？（Seedance 2.5 只支持 4–30 秒，没有 3 秒）", options: ["5 秒（默认，最省）", "4 秒", "8 秒", "10 秒"] },
     { id: "ratio", header: "画幅", question: "成片画幅？", options: ["16:9 横屏", "9:16 竖屏", "1:1 方形", "2.35:1 宽银幕（用 21:9）"] },
     { id: "generateAudio", header: "声音", question: "声音怎么做？", options: ["后期配音（推荐：时间点可控，模型音频实测会偏 0.3–1.3s）", "模型直接生成音频（快，但声画对不齐）"] },
@@ -92,7 +92,7 @@ function defaults(shotlist) {
   const perShot = durations.length ? Math.max(...durations) : 5;
   const count = shots.length || 1;
   return {
-    deliveryResolution: "1080p",
+    deliveryResolution: "720p",
     draftResolution: "480p",
     durationPerShot: perShot,
     ratio: shotlist?.format?.ratio ?? "16:9",

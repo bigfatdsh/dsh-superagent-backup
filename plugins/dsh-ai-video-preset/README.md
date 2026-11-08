@@ -44,7 +44,7 @@ cd /Users/yangletian/Documents/deepseek-harness/ai-video-studio
 # 0. 先问用户 8 项参数（画质/时长/画幅/声音/镜头数/样片策略/调用上限/机位扫描），再确认
 node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> --questions
 node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> \
-  --set "deliveryResolution=1080p,durationPerShot=5,shotCount=4,draftPolicy=all,maxPaidCalls=6,maxCallsPerShot=2,requireScan=true" \
+  --set "deliveryResolution=720p,durationPerShot=5,shotCount=4,draftPolicy=all,maxPaidCalls=8,maxCallsPerShot=2,requireScan=true" \
   --confirm --note "用户在对话框确认"
 
 # 1. 建契约（骨架）→ 填角色/场景/道具/调色 + 每镜 must_show(带 object) / cues / logic → 校验

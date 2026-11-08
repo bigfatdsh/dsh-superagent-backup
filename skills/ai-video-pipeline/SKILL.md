@@ -133,7 +133,7 @@ node .dsh/skills/ai-video-pipeline/scripts/contract-init.mjs --project projects/
 
 ## 2.6 机位扫描 `--test`：付费前把构图定死
 
-机位是**免费**的。Blender 单帧 640×360 只要 1–2 秒，而一条 1080p 5 秒 = 25 成本指数。
+机位是**免费**的。Blender 单帧 640×360 只要 1–2 秒，而一条 720p 5 秒 = 11.25 成本指数（1080p = 25.3）。
 上一轮 9 次生成里 6 次返工，5 次是"构图/主体不对"——这一节就是专门消灭这类返工。
 
 ```bash
