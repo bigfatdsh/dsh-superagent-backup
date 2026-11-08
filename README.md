@@ -65,6 +65,24 @@ SKIP_LAUNCHD=1 ./restore.sh
 **注意**：这套脚本依赖 `$STUDIO_DIR/tools/bin/{ffmpeg,ffprobe}` 和 Python/ffmpeg 环境；
 换机后如果 studio 没装，`qa-consistency` 与 `prep-shot` 会报找不到 ffmpeg。
 
+## v1.2 变更（2026-11-08）
+
+在 v1.1「契约 + 证据制 QA」之上压成本：那轮 4 镜花了 9 次生成（6 次返工），
+其中 5 次是「构图/主体不对」——这类问题用 Blender 单帧就能在付费前发现。
+
+- 预设 **1.2.0**：persona 加「先问用户 + 成本与调用纪律」，生成协议改成 draft→final 两级、
+  每一步都有门；失败分类补 F10（预算失控/盲抽）F11（契约坐标回填）。
+- 新增 `shot-scan.mjs` + `scan_cameras.py`：**机位扫描 `--test`**，候选机位/焦段各渲一帧，
+  用 Blender 投影算出 `must_show[].object` 的位置/占宽，与契约对账；`pass` 之前不许花钱。
+- 新增 `produce.mjs`：`intake`（问用户 8 项：画质/时长/画幅/声音/镜头数/样片策略/调用上限/机位扫描）
+  → `plan`（方案与预算对比）→ `gate`（每次提交前放行）→ `record`（记账）→ `approve`（样片放行）→ `status`。
+- `prep-shot.mjs` 支持 `--tier draft|final`，payload 带 `tier` 与 `contractHash`（契约改了旧提示词会被拦）。
+- 新增 `references/cost-control.md`；契约支持 `must_show[].object` 与 `scan.tolerance`。
+- selftest 从 9 项扩到 **18 项**（含 gate 八道检查、旧契约拦截、扫描计划展开）。
+
+**成本账**：4 镜 5 秒、交付 1080p，成本指数（854×480=1.0）从上一轮实测 **228**
+降到 **121**（零返工）～146（1 次返工），约省 36–47%。
+
 ## 更新这份备份
 
 ```sh

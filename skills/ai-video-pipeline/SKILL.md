@@ -10,14 +10,16 @@ whenToUse: 用户要生成 AI 视频、真人/写实镜头、白模参考、首�
 >
 > 三条线：**白模锁运动 → `consistency.json` 锁身份/空间/道具/调色 → `must_show` 锁内容正确性**。缺一条，模型就会用“看起来差不多”的东西把画面填满；成片复盘见 `references/failure-modes.md`。
 
-## 0. 先跑三道门槛
+## 0. 开工前五道门
 
 在写任何提示词之前，确认：
 
+0. **用户已确认制片参数**：`produce.mjs intake --questions` 的 8 项（画质/时长/画幅/声音/镜头数/样片策略/调用上限/机位扫描）必须**问过用户**并 `--confirm`。没确认，`produce.mjs gate` 会拒绝一切付费提交。详见 `references/cost-control.md`。
 1. **Blender 可用**：`node .dsh/skills/ai-video-pipeline/scripts/doctor.mjs`，`blender`/`ffmpeg`/`ffprobe` 三项必须 ok。
 2. **Seedance Key 可用**：`seedance_doctor` 里 `api-key` 和 `ark-endpoint` 通过；没有 Key 时只能 `seedance_preview_request`，不能提交。
 3. **本地参考视频有公网出口**：Ark 的 `video_url` 只接受公网 `http(s)` URL 或 `asset://`，**不接受 base64 视频**。本地白模 MP4 必须先 `seedance_stage_reference`，或配置 `stagePublicBaseUrl`/`cloudflaredPath`/`stageUploadProvider`。
-4. **一致性契约就绪**：`projects/<p>/consistency.json` 存在且 `contract-init.mjs --check` 通过。没有契约不许生成——这一条是 v1.1 新增的硬门。
+4. **一致性契约就绪**：`projects/<p>/consistency.json` 存在且 `contract-init.mjs --check` 通过。
+5. **机位扫描通过**：`shot-scan.mjs --test` 对每个要用白模的镜头给 `verdict=pass`。
 
 缺失任何一项，先停下修门槛，不要用“模型应该能猜”来绕过。
 
@@ -128,6 +130,42 @@ node .dsh/skills/ai-video-pipeline/scripts/contract-init.mjs --project projects/
 - **锚图只能来自已验收素材**。拿未验收的生成帧当锚 = 把错误固化成契约。
 - **参考图顺序固定**：`@图片1` 角色 → `@图片2` 场景 → `@图片3…` 道具 → 最后衔接尾帧；
   同一张图只占一个编号（`prep-shot.mjs` 自动去重）。
+
+## 2.6 机位扫描 `--test`：付费前把构图定死
+
+机位是**免费**的。Blender 单帧 640×360 只要 1–2 秒，而一条 1080p 5 秒 = 25 成本指数。
+上一轮 9 次生成里 6 次返工，5 次是"构图/主体不对"——这一节就是专门消灭这类返工。
+
+```bash
+node .dsh/skills/ai-video-pipeline/scripts/shot-scan.mjs --test \
+  --blend projects/my-film/blockout/scene.blend \
+  --project projects/my-film --shot shot_01 \
+  --base "from=-1500,-1500,1920;look=600,0,1560" \
+  --lenses 50,65,85 --dolly 0.9,1.0 \
+  --out projects/my-film/blockout/scan/shot_01
+```
+
+它做三件事：
+
+1. 每个候选（焦段 × 推拉）渲一张样张，拼成带标签的 `contact.png`（按评分排序，最好的在左上）。
+2. 用 Blender 把 `must_show[].object` 的**投影位置/占宽**算出来，与契约的 `at/size` 对账。
+3. 给结论：`pass`（可以进 Seedance）/ `fail`（回白模或改契约）/ `unscored`（只出图）。
+
+判定（可在契约里用 `scan.tolerance` 覆盖）：
+
+| 项 | 默认容差 | 含义 |
+| --- | --- | --- |
+| `position` | 0.05 | 主体中心与契约坐标的距离，归一化画面宽 |
+| `size` | 0.30 | 占宽相对偏差 |
+
+`verdict=fail` 时退出码是 1，`produce.mjs gate` 也会拒绝——**扫描不过不许花钱**。
+
+关键规则：
+
+- **契约的 `at/size` 必须来自白模扫描的实测值**，不能从成片回填（那是把模型漂移写成标准）。
+- `must_show` 要带 `object` 字段（白模里的物体名），否则只能出图不能对账。
+- 扫描 contact 要人看一眼：位置对了但景别/遮挡不对，仍然要改。
+- 白模里没有的主体（例如 shot_01 的纸靶不在过肩构图里），扫描会直接判"出画"——**先修白模，别指望提示词**。
 
 ## 3. 白模：先定骨架
 
@@ -256,6 +294,24 @@ node .dsh/skills/ai-video-pipeline/scripts/prep-shot.mjs --project projects/my-f
 
 ## 5. 提交 Seedance
 
+### 5.0 制片门禁与成本分级（先读）
+
+```bash
+# 每次提交前
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs gate --project projects/my-film --shot shot_01 --tier draft
+# 提交后立刻记账
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs record --project projects/my-film \
+  --shot shot_01 --tier draft --taskId cgt-xxxx --resolution 480p --duration 5
+# 样片通过
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs approve --project projects/my-film \
+  --shot shot_01 --tier draft --note "骨架/构图/一致性通过"
+```
+
+- `draft`（480p）→ `final`（交付画质）。没有 draft 通过记录，`gate` 不放行 `final`。
+- 每镜最多 2 次（含 draft）；第 3 次必须改结构并让用户重新确认预算。
+- `gate` 拒绝时就停，不许"先跑了再说"。
+- 完整成本模型、三种样片策略的账、8 项检查表见 `references/cost-control.md`。
+
 ### 5.1 把本地白模 MP4 变成公网 URL
 
 ```text
@@ -269,6 +325,8 @@ seedance_stage_reference({ path: "projects/my-film/renders/shot_01/shot_01.mp4",
 - 生产环境优先 TOS/对象存储或 `asset://`。
 
 ### 5.2 先预览，不花额度
+
+payload 由 `prep-shot.mjs --tier draft|final` 产出；`--tier draft` 会把 `resolution` 设成 480p 并带 `draft: true`。
 
 ```text
 seedance_preview_request({
@@ -417,12 +475,14 @@ seedance_generate_video({
 
 每个镜头至少交付：
 
-- `brief.md` / `shotlist.json` / **`consistency.json`**（意图、参数、不变量）
+- `brief.md` / `shotlist.json` / **`consistency.json`** / **`run.json`**（意图、参数、不变量、预算与账本）
+- `blockout/scan/<shot>/`（机位扫描：contact.png / scan.json / scan.md）
 - `blockout/anchors/`（角色/场景/道具/衔接锚）
 - `renders/<shot>/<shot>.mp4` + `first.png` + `last.png` + `contact.png`（白模证据）
 - `prompts/<shot>.txt` + `payload.json`（`prep-shot.mjs` 产出，不手写）
 - `output/seedance/<taskId>.mp4` + `qa/video-report.json`
 - **`qa/consistency-report.md`** + `qa/consistency/`（证据图：抽帧、must_show 裁剪）
+- `run.json` 的 `ledger`：每次调用的 taskId / tier / 分辨率 / 时长 / 成本指数
 - 一句话结论：骨架/一致性/内容正确性/技术各自是否通过，还有哪些「未验证」。
 
 最终回答不要只报“生成了”。要报：**taskId、localPath、实际 duration/ratio/resolution、
@@ -451,6 +511,10 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 | 某镜明显更暗/更灰 | 无统一调色 | 全片统一调色，卡亮度/饱和度阈值 |
 | 弹孔跳动、纸边变形 | 要求模型跨帧维持状态 | 只写单次事件，累计效果后期合成 |
 | QA 说通过但画面有硬伤 | 验收无证据、无阈值 | `qa-consistency` + 每条结论附证据路径；机器判不了的写“未验证” |
+| `gate` 拒绝 | 没确认 / 没契约 / 没机位扫描 / 提示词过期 / 超预算 | 看 `reasons` 逐条修；不要绕过 |
+| `shot-scan` verdict=fail | 主体位置/占宽与契约不符，或主体出画 | 改白模机位或改契约 `at/size`（改后重扫） |
+| 扫描 `probe` 未测到 | `object` 名写错/被隐藏/在相机背后 | 用 Blender 里真实的物体名；确认在白模里可见 |
+| 预算快超 | 返工多、或没用 draft | `produce.mjs status` 看账；停手改结构 |
 
 ## 10. 反模式
 
@@ -472,6 +536,12 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 - ❌ 时间敏感镜头开模型音频，然后手动对轨。
 - ❌ 用“看一眼缩略图”代替带坐标的裁剪证据。
 - ❌ 把机器判不了的项（身份/手部/材质）直接写成“通过”。
+- ❌ 没问用户就开跑（画质/时长/预算都是用户的钱）。
+- ❌ 用 `final` 直接试镜，而不是先出 480p 样片。
+- ❌ 把成片里"模型碰巧画对"的位置抄进契约的 `at/size`。
+- ❌ 绕过 `produce.mjs gate`，或提交后忘记 `record`。
+- ❌ 一次并行盲抽多条镜头。
+- ❌ 拿 480p 样片判断画质。
 
 ## 11. 相关文件
 
@@ -482,4 +552,7 @@ QA verdict、warnings、证据路径**，以及失败项对应的 F 编号和修
 - `references/shotlist-format.md`：shotlist 字段说明
 - `references/blender-shot-spec.md`：shot builder spec 字段说明
 - `scripts/doctor.mjs` / `new-project.mjs` / `render-shot.mjs` / `validate-shotlist.mjs` / `set-ark-key.mjs`
-- `scripts/contract-init.mjs`（契约生成/校验）/ `prep-shot.mjs`（确定性提示词）/ `qa-consistency.mjs`（证据制 QA）/ `shot-anchor.mjs`（衔接锚截帧）/ `selftest.mjs`（工具链自测）/ `build-prompt.mjs` / `qa-video.mjs`
+- `references/cost-control.md`：成本指数、三级样片策略的账、8 项门禁、一次通过清单
+- `scripts/contract-init.mjs`（契约生成/校验）/ `prep-shot.mjs`（确定性提示词 + tier）/ `qa-consistency.mjs`（证据制 QA）/ `shot-anchor.mjs`（衔接锚截帧）
+- `scripts/shot-scan.mjs` + `scan_cameras.py`（机位扫描 `--test`，投影对账）/ `produce.mjs`（intake/plan/gate/record/approve/status）
+- `scripts/selftest.mjs`（18 项工具链自测）/ `build-prompt.mjs` / `qa-video.mjs`

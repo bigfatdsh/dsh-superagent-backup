@@ -7,10 +7,14 @@
 
 ## A. 提交前（硬门）
 
+- [ ] 用户已确认 8 项制片参数（`run.json.confirmed.byUser=true`）
+- [ ] `produce.mjs gate --tier draft|final` 返回 `allowed:true`
+- [ ] `shot-scan --test` 该镜 `verdict=pass`（位置 ≤0.05、占宽 ≤30%）
 - [ ] `doctor.mjs` 的 blender / ffmpeg / ffprobe 全绿
 - [ ] `seedance_doctor` 的 api-key / ark-endpoint 通过
 - [ ] `contract-init.mjs --check` 通过（锚图存在、`must_show` 非空、cue 在时长内）
-- [ ] `prep-shot.mjs` 退出码 0（无禁词、无参数错误），`prompts/<shot>.txt` 由它生成
+- [ ] `prep-shot.mjs --tier <档位>` 退出码 0（无禁词、无参数错误），提示词由它生成
+- [ ] payload 的 `contractHash` 与当前契约一致（改过契约要重跑）
 - [ ] 本地白模 MP4 已 staging 成公网 URL（或已是 `asset://`）
 - [ ] `seedance_preview_request` 的 `payload.content` 角色顺序正确
 - [ ] `omni_reference_task_type=reference`（白模参考）
@@ -20,6 +24,13 @@
 - [ ] 真人脸合规：参考图是 AI 虚拟人像/预置数字人/授权 `asset://`
 - [ ] 手部：不入画/遮挡/中近景；没有多人肢体接触
 - [ ] 快速转身：已切镜或拆分
+
+## A2. 成本纪律
+
+- [ ] 本镜调用次数 ≤ 2（含 draft）
+- [ ] `tier=final` 之前，该镜 draft 已 `approve`
+- [ ] 提交后已 `record --taskId`，`status` 里的账与真实调用一致
+- [ ] 没有为了"看看效果"多抽；没有并行盲抽
 
 ## B. 白模素材
 

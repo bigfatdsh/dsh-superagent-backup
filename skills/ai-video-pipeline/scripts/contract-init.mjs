@@ -152,6 +152,9 @@ function validate(data, shotlist) {
     }
     for (const [index, item] of (entry.must_show ?? []).entries()) {
       if (!item?.what) errors.push(`shots.${shot.id}.must_show[${index}].what 必填`);
+      if (item?.object !== undefined && (typeof item.object !== "string" || item.object.trim() === "")) {
+        errors.push(`shots.${shot.id}.must_show[${index}].object 必须是非空字符串（白模里的物体名，供机位扫描用）`);
+      }
       if (!isNormalized(item?.at)) errors.push(`shots.${shot.id}.must_show[${index}].at 必须是 [0-1, 0-1] 的归一化坐标`);
       const size = Number(item?.size);
       if (!Number.isFinite(size) || size <= 0.02 || size > 1) errors.push(`shots.${shot.id}.must_show[${index}].size 必须落在 (0.02, 1]`);
@@ -169,6 +172,9 @@ function validate(data, shotlist) {
       if (!cue?.event) errors.push(`shots.${shot.id}.cues[${index}].event 必填`);
     }
     if (entry.avoid !== undefined && !Array.isArray(entry.avoid)) errors.push(`shots.${shot.id}.avoid 必须是字符串数组`);
+    if (!(entry.must_show ?? []).some((item) => item.object)) {
+      warnings.push(`shots.${shot.id}.must_show 没有 object 字段：机位扫描只能出图、不能校验主体位置`);
+    }
     if (!entry.logic) warnings.push(`shots.${shot.id}.logic 为空：物理/因果逻辑（准星是否对准靶心、运动方向）没写，容易被模型画错`);
   }
 

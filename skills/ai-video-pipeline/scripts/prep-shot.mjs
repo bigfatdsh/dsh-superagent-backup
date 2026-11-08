@@ -11,6 +11,7 @@
 // 输出：<project>/prompts/<shot>.txt 和 <project>/prompts/<shot>.payload.json
 // 退出码：0 通过（可有警告）；1 有阻塞问题。
 
+import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
@@ -134,7 +135,8 @@ async function main() {
   const ratio = seedance.ratio ?? contract.format?.ratio ?? shotlist.format?.ratio ?? "16:9";
   const duration = Number(seedance.duration ?? shot.duration ?? 5);
   const formatResolution = contract.format?.resolution ?? shotlist.format?.resolution ?? [1280, 720];
-  const payloadResolution = seedance.resolution ?? "1080p";
+  const tier = args.tier === "draft" ? "draft" : "final";
+  const payloadResolution = tier === "draft" ? "480p" : (seedance.resolution ?? "1080p");
   const fps = contract.format?.fps ?? shotlist.format?.fps ?? 24;
   const entry = contract.shots?.[shotId] ?? {};
 
@@ -162,6 +164,7 @@ async function main() {
       errors.push(`cues[${index}].t=${cue?.t} 超出镜头时长 ${duration}s`);
     }
   }
+  if (tier === "draft") warnings.push("draft 样片只验骨架/构图/一致性，不要用样片判断画质；通过后要 approve draft 才允许出 final");
   if (!entry.logic) warnings.push(`shots.${shotId}.logic 为空：物理/因果逻辑没写（准星是否对准靶心、运动方向），模型容易画反`);
 
   // ---------- 素材清单（编号固定；同一张锚图只占一个编号） ----------
@@ -181,7 +184,7 @@ async function main() {
     const prop = (subjects.props ?? []).find((candidate) => candidate.id === item.prop)
       ?? (subjects.props ?? []).find((candidate) => `${item.what}`.includes(candidate.id));
     if (!prop) {
-      warnings.push(`must_show「${item.what}」没有对应的 subjects.props 条目：道具没有锚图，跨镜一致性没有依据`);
+      if (item.prop) warnings.push(`must_show「${item.what}」的 prop=${item.prop} 在 subjects.props 里不存在：道具没有锚图`);
       continue;
     }
     if (!usedProps.includes(prop)) usedProps.push(prop);
@@ -296,16 +299,19 @@ async function main() {
     ratio,
     duration,
     resolution: payloadResolution,
+    ...(tier === "draft" ? { draft: true } : {}),
     generate_audio: seedance.generate_audio ?? false,
     output_format: seedance.output_format ?? "mp4",
     reference_videos: seedance.reference_videos ?? [],
     reference_images: imagePlan.map((item) => item.path),
     negative_prompt: negative,
+    tier,
+    contractHash: createHash("sha256").update(await readFile(contractPath)).digest("hex").slice(0, 16),
     prompt
   };
 
   const outDir = resolve(args.out ?? join(root, "prompts"));
-  const txtPath = join(outDir, `${shotId}.txt`);
+  const txtPath = join(outDir, `${shotId}${tier === "draft" ? ".draft" : ""}.txt`);
   const jsonPath = join(outDir, `${shotId}.payload.json`);
   if (!args.print) {
     await mkdir(outDir, { recursive: true });
@@ -317,6 +323,7 @@ async function main() {
     ok: errors.length === 0,
     shot: shotId,
     mode,
+    tier,
     ratio,
     duration,
     resolution: payloadResolution,

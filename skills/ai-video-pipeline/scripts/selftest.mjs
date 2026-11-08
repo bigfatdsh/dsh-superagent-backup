@@ -163,6 +163,42 @@ async function main() {
     const qaBad = await run("qa-consistency.mjs", ["--project", root, "--video", `shot_01=${video}`]);
     record("qa-consistency-detects-audio-drift", qaBad.code === 1 && (qaBad.json?.hardFailures ?? []).some((item) => item.includes("声画不同步")), qaBad.json?.hardFailures?.[0]);
 
+    // 7) 制片门禁：问卷 → 确认 → 放行 → 契约改了要重新 prep → 记账 → 超限拒绝
+    const questions = await run("produce.mjs", ["intake", "--project", root, "--questions"]);
+    record("produce-intake-questions", questions.code === 0 && (questions.json?.questions ?? []).length >= 6, `${questions.json?.questions?.length ?? 0} 题`);
+
+    const confirmed = await run("produce.mjs", ["intake", "--project", root,
+      "--set", "deliveryResolution=480p,draftResolution=480p,durationPerShot=4,shotCount=1,maxPaidCalls=2,maxCallsPerShot=1,draftPolicy=none,requireScan=false",
+      "--confirm", "--note", "selftest"]);
+    record("produce-intake-confirm", confirmed.code === 0 && confirmed.json?.confirmed === true, confirmed.json?.errors?.join("；"));
+
+    await writeContract(contract);
+    await run("prep-shot.mjs", ["--project", root, "--shot", "shot_01", "--tier", "final"]);
+    await writeContract({ ...contract, shots: { shot_01: { ...contract.shots.shot_01, logic: "契约已被修改" } } });
+    const stale = await run("produce.mjs", ["gate", "--project", root, "--shot", "shot_01", "--tier", "final"]);
+    record("produce-gate-detects-stale-prompt", stale.code === 1 && `${stale.json?.reasons ?? ""}`.includes("旧契约"), stale.json?.reasons?.[0]);
+
+    await writeContract(contract);
+    const gatedOk = await run("produce.mjs", ["gate", "--project", root, "--shot", "shot_01", "--tier", "final"]);
+    record("produce-gate-allows", gatedOk.code === 0 && gatedOk.json?.allowed === true, gatedOk.json?.reasons?.join("；"));
+
+    const gatedScan = await run("produce.mjs", ["intake", "--project", root, "--set", "requireScan=true", "--confirm", "--note", "selftest"]);
+    const scanGate = await run("produce.mjs", ["gate", "--project", root, "--shot", "shot_01", "--tier", "final"]);
+    record("produce-gate-requires-scan", gatedScan.code === 0 && scanGate.code === 1 && `${scanGate.json?.reasons ?? ""}`.includes("机位扫描"), scanGate.json?.reasons?.[0]);
+    await run("produce.mjs", ["intake", "--project", root, "--set", "requireScan=false", "--confirm", "--note", "selftest"]);
+
+    const recorded = await run("produce.mjs", ["record", "--project", root, "--shot", "shot_01", "--tier", "final", "--taskId", "cgt-selftest", "--resolution", "480p", "--duration", "4"]);
+    record("produce-record", recorded.code === 0 && recorded.json?.entry?.units > 0, `units=${recorded.json?.entry?.units}`);
+
+    const blocked = await run("produce.mjs", ["gate", "--project", root, "--shot", "shot_01", "--tier", "final"]);
+    record("produce-gate-blocks-over-budget", blocked.code === 1 && `${blocked.json?.reasons ?? ""}`.includes("上限"), blocked.json?.reasons?.[0]);
+
+    // 8) 机位扫描计划（不启动 Blender）
+    const scanPlan = await run("shot-scan.mjs", ["--test", "--blend", video, "--base", "from=0,-4000,1450;look=0,0,950", "--lenses", "35,50", "--dolly", "1.0,0.9", "--plan-only", "--out", join(root, "scan-plan")]);
+    record("shot-scan-plan-expands", scanPlan.code === 0 && scanPlan.json?.variants === 4, `variants=${scanPlan.json?.variants}`);
+    const scanBad = await run("shot-scan.mjs", ["--test", "--blend", video, "--lenses", "50", "--plan-only", "--out", join(root, "scan-plan-bad")]);
+    record("shot-scan-rejects-missing-base", scanBad.code === 1, scanBad.json?.error?.slice(0, 60));
+
     const failed = checks.filter((item) => !item.ok);
     process.stdout.write(`\n${JSON.stringify({ ok: failed.length === 0, checks: checks.length, failed: failed.map((item) => item.id), dir: root }, null, 2)}\n`);
     if (failed.length === 0 && !keep) await rm(root, { recursive: true, force: true });

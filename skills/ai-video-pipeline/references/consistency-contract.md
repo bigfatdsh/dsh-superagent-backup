@@ -142,7 +142,8 @@ node .dsh/skills/ai-video-pipeline/scripts/shot-anchor.mjs \
 }
 ```
 
-- `must_show[].at` 是**归一化坐标**（0-1），`size` 是**占画面宽度比例**。
+- `must_show[].object` 是白模里的**物体名**（可选但强烈建议）：`shot-scan.mjs` 用它做投影对账。没有它，机位扫描只能出图、不能判"主体到没到位"。
+- `must_show[].at` 是**归一化坐标**（0-1），`size` 是**占画面宽度比例**。**这两个值必须来自 `shot-scan` 的实测投影**，不许从成片回填——回填等于把模型的漂移写成标准（见 `failure-modes.md` F11）。
   它表达的是"契约要求它在这里"，不是"它现在在这里"。QA 会按这个坐标裁证据图：
   裁出来是墙，就说明主体没到位。
 - `must_show[].prop` 指向 `subjects.props[].id`，用来把道具锚图自动带进这一镜。
@@ -152,6 +153,15 @@ node .dsh/skills/ai-video-pipeline/scripts/shot-anchor.mjs \
   的核心，模型画反方向就是没写清。
 - `avoid` 是本镜特有的排除项，会进入 `negative_prompt`。基础护栏（字幕/水印/多指/
   白模材质…）由插件的 `quality_guard` 负责，**不要重复写**，`prep-shot.mjs` 会自动剔除。
+
+## 5.5 扫描容差（可选）
+
+```json
+"scan": { "tolerance": { "position": 0.05, "size": 0.3 } }
+```
+
+`position` 是主体中心到契约坐标的归一化距离；`size` 是占宽相对偏差。
+默认 0.05 / 0.30，一般不要放宽——放宽等于允许"构图差不多"。
 
 ## 6. 音频策略
 

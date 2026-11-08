@@ -1,5 +1,5 @@
 super-agent 备份清单
-打包时间: 2026-11-07 23:53:35 CST（v1.1 增量，最终版）
+打包时间: 2026-11-08 09:43:19 CST（v1.2）
 打包机器: macOS 26.6.2 arm64
 DSH: 0.2.2-rc.1
 node: v24.21.0
@@ -7,12 +7,19 @@ node: v24.21.0
 本机改动: src/infra/environment.ts + 新增 bridge/ + DEPLOYMENT-zh.md
 面板端口: 3082  (LaunchAgent com.bigfatdsh.superagent)
 
-本次增量（2026-11-07 晚）
+本次增量（2026-11-08 v1.2）
+- dsh-ai-video-preset 1.1.0 → 1.2.0：先问用户 + 成本与调用纪律 + draft/final 两级协议 + F10/F11
+- 新增 shot-scan.mjs / scan_cameras.py（机位扫描 --test，投影对账）、produce.mjs（intake/plan/gate/record/approve/status）
+- prep-shot 支持 --tier 与 contractHash；references 增 cost-control.md
+- selftest 9 → 18 项；verify-all 全绿
+- 成本指数：上一轮实测 228 → 本方案 121（零返工）
+
+上一轮增量（2026-11-07 晚）
 - dsh-ai-video-preset 1.0.0 → 1.1.0：persona 重写为 10 节一致性协议 + 证据制 QA
 - 新增 skills/ai-video-pipeline/：contract-init / prep-shot / qa-consistency / shot-anchor / selftest
   + references/consistency-contract.md、references/failure-modes.md
 - restore.sh：新增 STUDIO_DIR，把管线 skill 装到 $STUDIO_DIR/.dsh/skills
 - 验证：verify-all.sh ALL OK（含 9 条 selftest）；range-test 真实成片 QA 抓出 6 硬失败 + 5 警告
 
-文件数: 294
-体积: 约 7.0M（源码+构建产物+附带插件+app+管线 skill）
+文件数: 298
+体积: 7.3M

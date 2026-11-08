@@ -3,7 +3,7 @@
 这个 bundle 声明 **AI 视频导演** 预设，并把 `tool-seedance` 指到工作室的
 `tools/bin/ffprobe`、零配置公网 staging 兜底。
 
-版本 1.1.0 起，预设的主线从「白模 + 提示词」升级为 **一致性契约驱动的证据制生产**：
+版本 1.1.0 起，预设的主线从「白模 + 提示词」升级为 **一致性契约驱动的证据制生产**；1.2.0 再加 **机位扫描 `--test`、强制 intake、成本门禁**：
 成因是 AIsp 工作区那轮《靶场校准》暴露的 9 类事故（镜内切镜、主体偏出、
 道具比例漂移、声画落点偏移、跨镜调色漂移、状态不连续、场景自由发明、QA 自证失效）。
 
@@ -29,22 +29,46 @@
 ```bash
 cd /Users/yangletian/Documents/deepseek-harness/ai-video-studio
 
-# 1. 建契约（骨架）→ 填角色/场景/道具/调色 + 每镜 must_show / cues / logic → 校验
+# 0. 先问用户 8 项参数（画质/时长/画幅/声音/镜头数/样片策略/调用上限/机位扫描），再确认
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> --questions
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs intake --project projects/<p> \
+  --set "deliveryResolution=1080p,durationPerShot=5,shotCount=4,draftPolicy=all,maxPaidCalls=6,maxCallsPerShot=2,requireScan=true" \
+  --confirm --note "用户在对话框确认"
+
+# 1. 建契约（骨架）→ 填角色/场景/道具/调色 + 每镜 must_show(带 object) / cues / logic → 校验
 node .dsh/skills/ai-video-pipeline/scripts/contract-init.mjs --project projects/<p>
 node .dsh/skills/ai-video-pipeline/scripts/contract-init.mjs --project projects/<p> --check
 
-# 2. 从已通过的成片截衔接锚（可选）
+# 2. 机位扫描 --test：候选机位/焦段样张 + 投影对账（免费，pass 之前不许花钱）
+node .dsh/skills/ai-video-pipeline/scripts/shot-scan.mjs --test \
+  --blend projects/<p>/blockout/scene.blend --project projects/<p> --shot shot_01 \
+  --base "from=-1500,-1500,1920;look=600,0,1560" --lenses 50,65,85 --dolly 0.9,1.0
+
+# 3. 从已通过的成片截衔接锚（可选）
 node .dsh/skills/ai-video-pipeline/scripts/shot-anchor.mjs \
   --video output/seedance/<taskId>.mp4 --at 4.4 --out projects/<p>/blockout/anchors/shot_01_tail.jpg
 
-# 3. 确定性生成提示词 + payload（契约块原样嵌入、禁词校验、素材编号固定）
-node .dsh/skills/ai-video-pipeline/scripts/prep-shot.mjs --project projects/<p> --shot shot_01
+# 4. 两级生成：draft（480p）→ 验收 → approve → final
+node .dsh/skills/ai-video-pipeline/scripts/prep-shot.mjs --project projects/<p> --shot shot_01 --tier draft
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs gate --project projects/<p> --shot shot_01 --tier draft
+# preview → generate → record → status（DSH 工具）
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs record --project projects/<p> \
+  --shot shot_01 --tier draft --taskId cgt-xxx --resolution 480p --duration 5
+# 看证据 → 合格则
+node .dsh/skills/ai-video-pipeline/scripts/produce.mjs approve --project projects/<p> --shot shot_01 --tier draft
 
-# 4. preview → generate → status（DSH 工具）
-# 5. 证据制 QA
+# 5. final 同一套流程（--tier final），然后证据制 QA
 node .dsh/skills/ai-video-pipeline/scripts/qa-video.mjs --video <mp4> --strict
 node .dsh/skills/ai-video-pipeline/scripts/qa-consistency.mjs --project projects/<p>
 ```
+
+`shot-scan.mjs --test` 的判定：
+
+| 检查 | 阈值（可在契约 `scan.tolerance` 覆盖） |
+| --- | --- |
+| 主体中心与契约坐标的距离 | ≤ 0.05（画面宽归一化） |
+| 主体占宽相对偏差 | ≤ 30% |
+| 主体中心是否出画 | 出画即 fail |
 
 `qa-consistency.mjs` 的判定阈值：
 
